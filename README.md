@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AURELIS
 
-## Getting Started
+AURELIS is a personal global situational dashboard that brings public data sources together in a single interactive interface.
 
-First, run the development server:
+Its central principle is simple:
+
+> The interface must never claim more than the underlying data supports.
+
+## Current state
+
+- Interactive MapLibre world map
+- Custom AURELIS basemap style
+- Explicit data provenance model
+- USGS M2.5+ earthquakes from the past 24 hours
+- Continuous synchronization
+- Source health: Fresh / Stale / Unavailable
+- Intelligence panel for earthquake observations
+
+## Data philosophy
+
+AURELIS distinguishes between:
+
+- observed
+- reported
+- estimated
+- inferred
+
+Whenever possible, information preserves:
+
+- source
+- original record
+- timestamps
+- geographic precision
+- confidence/provenance
+
+Relationships between entities are never drawn merely for visual effect.
+
+## Stack
+
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- MapLibre GL
+
+## Current data source
+
+USGS Earthquakes
+
+Basemap: [OpenFreeMap](https://openfreemap.org) vector tiles, © [OpenMapTiles](https://www.openmaptiles.org/), data from [OpenStreetMap](https://www.openstreetmap.org/copyright).
+
+## Running locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Documentation
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- [AURELIS_CONTEXT.md](AURELIS_CONTEXT.md): goals, architecture, decisions and log
+- [docs/DATA_MODEL.md](docs/DATA_MODEL.md): entities, observations, provenance
+- [docs/MAP_ARCHITECTURE.md](docs/MAP_ARCHITECTURE.md): basemap provider, style and data layers
 
-## Learn More
+## Status
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Personal experimental project under active development.

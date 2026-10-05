@@ -1,26 +1,112 @@
 @import "tailwindcss";
 
+/*
+ * AURELIS palette — the only place colors are defined.
+ * Gold: brand, primary selection, important action.
+ * Cyan: information, data, technical indicators, secondary focus.
+ * Text (white): primary text. Grays: secondary, unavailable, no-data.
+ * Deep blue: surfaces, discreet selection, depth.
+ * No severity colors (warning/danger/success) until real data exists.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  --aurelis-bg: #04091b;
+  --aurelis-surface: #071126;
+  --aurelis-surface-elevated: #0b1732;
+  --aurelis-blue: #0b2053;
+
+  --aurelis-gold: #fec404;
+  --aurelis-gold-muted: #efb001;
+
+  --aurelis-cyan: #53eafd;
+
+  --aurelis-text: #eeeeef;
+  --aurelis-text-muted: #989ba2;
+  /* #6f7789 nudged lighter: 4.9:1 on surface instead of 4.2:1. */
+  --aurelis-text-subtle: #7a8396;
+
+  --aurelis-border: rgba(152, 155, 162, 0.16);
+  --aurelis-border-strong: rgba(152, 155, 162, 0.3);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-base: var(--aurelis-bg);
+  --color-surface: var(--aurelis-surface);
+  --color-elevated: var(--aurelis-surface-elevated);
+  --color-deep: var(--aurelis-blue);
+  --color-gold: var(--aurelis-gold);
+  --color-gold-muted: var(--aurelis-gold-muted);
+  --color-cyan: var(--aurelis-cyan);
+  --color-fg: var(--aurelis-text);
+  --color-fg-muted: var(--aurelis-text-muted);
+  --color-fg-subtle: var(--aurelis-text-subtle);
+  --color-line: var(--aurelis-border);
+  --color-line-strong: var(--aurelis-border-strong);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  background: var(--aurelis-bg);
+  color: var(--aurelis-text);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--aurelis-blue);
+  color: var(--aurelis-text);
+}
+
+/* In the base layer so components can replace it with their own focus style. */
+@layer base {
+  :focus-visible {
+    outline: 1px solid var(--aurelis-cyan);
+    outline-offset: 2px;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* MapLibre controls, restyled to match the panels. */
+.maplibregl-ctrl-group {
+  background: var(--aurelis-surface) !important;
+  border: 1px solid var(--aurelis-border);
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+.maplibregl-ctrl-group button {
+  width: 28px !important;
+  height: 28px !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--aurelis-border) !important;
+}
+.maplibregl-ctrl-group button:hover {
+  background-color: var(--aurelis-surface-elevated) !important;
+}
+.maplibregl-ctrl-group button:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--aurelis-cyan) !important;
+}
+.maplibregl-ctrl-group .maplibregl-ctrl-icon {
+  filter: invert(0.8);
+}
+/*
+ * Attribution (required, always visible). Selectors use .maplibregl-ctrl
+ * too: MapLibre's own `.maplibregl-ctrl-attrib a` (black text) loads after
+ * this file and would otherwise win, making the links unreadable.
+ */
+.maplibregl-ctrl.maplibregl-ctrl-attrib {
+  background: color-mix(in srgb, var(--aurelis-surface) 90%, transparent) !important;
+  border-top-left-radius: 3px;
+  padding: 1px 6px;
+  color: var(--aurelis-text-muted);
+  font-size: 10px;
+  line-height: 16px;
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib a {
+  color: var(--aurelis-text-muted);
+  text-decoration: none;
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib a:hover {
+  color: var(--aurelis-text);
+  text-decoration: underline;
 }
