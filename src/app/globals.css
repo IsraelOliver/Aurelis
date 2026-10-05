@@ -102,6 +102,11 @@ body {
   font-size: 10px;
   line-height: 16px;
 }
+/* SATELLITE: Esri recommends data attribution at 12px or larger. */
+.aurelis-basemap-satellite .maplibregl-ctrl.maplibregl-ctrl-attrib {
+  font-size: 12px;
+  line-height: 18px;
+}
 .maplibregl-ctrl.maplibregl-ctrl-attrib a {
   color: var(--aurelis-text-muted);
   text-decoration: none;

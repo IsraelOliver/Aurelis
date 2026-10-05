@@ -5,7 +5,7 @@ import type {
   IssObservation,
   SourceHealth,
 } from "@/types";
-import { formatLatitude, formatLongitude } from "@/lib/format";
+import { formatLatitude, formatLongitude, formatUtc } from "@/lib/format";
 import { NASA_ISS_STREAM } from "@/lib/sources/nasa/iss-media";
 import IssCamera from "./IssCamera";
 import { EMPTY, Note, PanelShell, Row, Section, SourceLink, Time } from "./primitives";
@@ -15,25 +15,30 @@ const km = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 /**
  * Intelligence Panel for the ISS. Reads only the latest snapshot already
  * loaded through /api/space/iss; never fetches. Updates with each new position.
- * Mounted per selection (keyed by entity id), so the camera always starts
- * closed and its iframe disappears when the panel unmounts.
+ * Mounted per selection (keyed by entity id): the camera opens by default
+ * each time the ISS is selected (player shown, never autoplayed), HIDE CAMERA
+ * applies to the current selection only, and the iframe disappears when the
+ * panel unmounts (panel closed or another entity selected).
  */
 export default function IssPanel({
   entity,
   observation,
+  trail,
   source,
   sourceHealth,
   onClose,
 }: {
   entity: AurelisEntity;
   observation: IssObservation;
+  /** Recent tracked path held in memory (positions count, first position time in ms). */
+  trail: { points: number; since?: number };
   source: IntelligenceSource;
   sourceHealth: SourceHealth;
   onClose: () => void;
 }) {
   const { data, location } = observation;
   // Camera state is independent of telemetry health: a stale WTIA source does not hide it.
-  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(true);
 
   return (
     <PanelShell
@@ -66,6 +71,7 @@ export default function IssPanel({
         </Row>
         <Row label="ALTITUDE">
           <span className="font-mono">{km.format(data.altitudeKm)} km</span>
+          <Note>Rendered at reported orbital altitude on globe.</Note>
         </Row>
         <Row label="VELOCITY">
           {/* The raw value stays in the Observation; without a documented unit it is not a usable metric. */}
@@ -82,6 +88,29 @@ export default function IssPanel({
         <Row label="OBSERVED">
           <Time iso={observation.observedAt} />
           <Note>Instant the computed position applies to.</Note>
+        </Row>
+        <Row label="TRACKED PATH">
+          {trail.points > 1 && trail.since !== undefined ? (
+            <>
+              <span className="font-mono">{trail.points} positions</span>
+              <Note>
+                Recent ground track since {formatUtc(new Date(trail.since).toISOString())?.time}
+                , drawn on the surface. Received positions only; not an orbit prediction.
+              </Note>
+            </>
+          ) : (
+            <>
+              {EMPTY}
+              <Note>Recent ground track appears as positions are received.</Note>
+            </>
+          )}
+        </Row>
+        <Row label="SMOOTH DISPLAY">
+          <span className="font-mono">~5 s visual delay</span>
+          <Note>
+            The map marker is drawn about 5 seconds behind, moving between received
+            observations. Values in this panel are the latest observation.
+          </Note>
         </Row>
       </Section>
 

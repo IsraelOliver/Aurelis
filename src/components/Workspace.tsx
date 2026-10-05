@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { EarthquakeFeed, IssFeed, SourceSyncState } from "@/types";
 import {
   ISS_SYNC,
@@ -11,6 +11,7 @@ import {
 } from "@/lib/source-health";
 import { USGS_EARTHQUAKES_SOURCE } from "@/lib/sources/usgs/source";
 import { ISS_ENTITY_ID, WTIA_ISS_SOURCE } from "@/lib/sources/wtia/source";
+import { appendTrailPoint, trailToSegments, type TrailPoint } from "@/lib/iss-trail";
 import Topbar from "@/components/layout/Topbar";
 import Sidebar from "@/components/layout/Sidebar";
 import StatusBar from "@/components/layout/StatusBar";
@@ -58,7 +59,9 @@ function toSyncState(
 /**
  * Client shell that owns the data state shared by topbar, map, sidebar,
  * panel and status bar. Each source syncs independently and has its own
- * SourceHealth; only the latest snapshot of each is kept (no history).
+ * SourceHealth; only the latest snapshot of each is kept (no history). The
+ * one exception is the ISS recent tracked path: a bounded in-memory list of
+ * received positions (see lib/iss-trail.ts), never persisted.
  * Selection is keyed by Entity ID, never by Observation ID: it survives
  * updates of the same entity and is cleared when the entity leaves its source.
  */
@@ -70,11 +73,24 @@ export default function Workspace() {
       id?.startsWith("earthquake:") && !feed.entities.some((e) => e.id === id) ? null : id,
     );
   }, []);
+  const [issTrail, setIssTrail] = useState<TrailPoint[]>([]);
   const onIssSnapshot = useCallback((feed: IssFeed) => {
     setSelectedEntityId((id) =>
       id === ISS_ENTITY_ID && !feed.entities.some((e) => e.id === id) ? null : id,
     );
+    // Only received positions extend the path; failed polls add nothing.
+    const observation = feed.observations.find((o) => o.entityId === ISS_ENTITY_ID);
+    if (observation?.location && observation.observedAt) {
+      const point = {
+        lon: observation.location.longitude,
+        lat: observation.location.latitude,
+        t: Date.parse(observation.observedAt),
+        altitudeKm: observation.data.altitudeKm,
+      };
+      setIssTrail((trail) => appendTrailPoint(trail, point));
+    }
   }, []);
+  const issTrailSegments = useMemo(() => trailToSegments(issTrail), [issTrail]);
 
   const usgs = useSourceSync<EarthquakeFeed>(
     "/api/earthquakes",
@@ -123,6 +139,7 @@ export default function Workspace() {
           key={entity.id}
           entity={entity}
           observation={observation}
+          trail={{ points: issTrail.length, since: issTrail[0]?.t }}
           source={iss.snapshot.source}
           sourceHealth={issState.health}
           onClose={close}
@@ -162,6 +179,8 @@ export default function Workspace() {
           <MapView
             earthquakes={usgs.snapshot}
             iss={iss.snapshot}
+            issTrail={issTrailSegments}
+            issPositions={issTrail}
             selectedEntityId={panel ? selectedEntityId : null}
             onSelectEntity={setSelectedEntityId}
           />

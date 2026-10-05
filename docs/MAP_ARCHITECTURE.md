@@ -101,7 +101,8 @@ Implementada **só no style JSON**, com `minzoom`, filtros e `line-opacity` inte
 | -------------- | ---- | ----- | ------ |
 | `aurelis-earthquakes-source` / `aurelis-earthquakes-layer` | GeoJSON + circle (ciano) | USGS Earthquakes M2.5+ / 24 h, via `/api/earthquakes` | `src/components/map/earthquake-layer.ts` |
 | `aurelis-earthquakes-selected-layer` | circle (dourado) sobre a mesma source, filtrado por `entityId` | evento selecionado | `src/components/map/earthquake-layer.ts` |
-| `aurelis-iss-source` / `aurelis-iss-halo-layer`, `aurelis-iss-layer`, `aurelis-iss-label-layer` | GeoJSON + circle (anel) + circle (núcleo) + symbol ("ISS") | posição atual da ISS, via `/api/space/iss`; ciano, dourado quando selecionada (`setPaintProperty`) | `src/components/map/iss-layer.ts` |
+| `aurelis-iss-source` / `aurelis-iss-layer` | GeoJSON + symbol (ícone anel + núcleo e texto "ISS") | posição atual da ISS, via `/api/space/iss`; ciano, dourado quando selecionada (`icon-image`, `text-color`); no GLOBE elevada à altitude reportada (`symbol-height-offset` = `altitudeKm × 1000` m, escala real), no FLAT sobre o mapa | `src/components/map/iss-layer.ts` |
+| `aurelis-iss-trail-source` / `aurelis-iss-trail-layer` | GeoJSON (MultiLineString) + line (ciano) | ground track recente da ISS, sempre na superfície (não elevado): só posições recebidas (10 min / 120 pts), quebrada em lacunas > 30 s e no antimeridiano; visível só com a ISS selecionada; **não** é órbita | `src/lib/iss-trail.ts`, `src/components/map/iss-layer.ts` |
 
 Regras para todas as camadas de dados:
 
@@ -121,4 +122,23 @@ Precisa permanecer visível:
 
 ## Opções fixas do MapLibre
 
-`src/lib/map-config.ts` → `INITIAL_VIEW`: projeção Mercator 2D, `renderWorldCopies: false`, zoom 1–18. Sem globo, terrain, pitch ou rotação automática.
+`src/lib/map-config.ts` → `INITIAL_VIEW`: `renderWorldCopies: false` (efeito só no Mercator), zoom 1–18.
+
+**Projeção** (Etapa 5E): `projectionMode: "globe" | "mercator"`, **default `globe`**, projeção nativa do MapLibre (`map.setProjection`), alternável pelo controle GLOBE / FLAT (não persistido). A projeção é **independente do basemap**: hoje sempre OpenFreeMap + style AURELIS; um `basemapMode` futuro (ex.: satellite) vai se combinar com ela. No globo, uma atmosfera nativa muito sutil (`map.setSky`, tokens `--aurelis-bg`/`--aurelis-blue`). As camadas de dados AURELIS são as mesmas nas duas projeções (a ISS, só no globo, sobe à altitude orbital reportada; posição e altitude interpoladas no mesmo instante, ~5 s atrás; sem previsão orbital); a trilha da ISS dividida em ±180° aparece contínua no globo e não atravessa o mapa no Mercator.
+
+Antes da Etapa 5E: projeção Mercator 2D. Sem globo, terrain, pitch ou rotação automática.
+
+## Basemap mode (Etapa 5F)
+
+`basemapMode: "dark" | "satellite"` (default **dark**), independente de `projectionMode` (globe/mercator); as quatro combinações funcionam. Controles separados: GLOBE/FLAT e MAP/SATELLITE.
+
+| Modo | Base | Por cima |
+| ---- | ---- | -------- |
+| DARK | OpenFreeMap + style `aurelis-dark.json` (todas as layers) | dados AURELIS |
+| SATELLITE | **Esri World Imagery** (source/layer `aurelis-basemap-imagery-source` / `-layer`, raster, logo acima do `background`) | só `boundary_*` e `place_*` do style AURELIS (restilizados para foto) + dados AURELIS |
+
+- **Origem da imagery**: ArcGIS **Basemap Styles service v2**, style `arcgis/imagery`, autenticado com API key (`NEXT_PUBLIC_ARCGIS_API_KEY`, nunca versionada). Usa-se só a source raster que o serviço devolve (tiles `ibasemaps-api.arcgis.com/.../World_Imagery/MapServer` + atribuição); o style da Esri não é aplicado (`setStyle` não é usado) e o endpoint legado `server.arcgisonline.com` não é usado.
+- Imagery requisitada só após selecionar SATELLITE; em DARK a layer fica oculta e não gera requisições.
+- Ao voltar para DARK, visibilidade e pintura originais são restauradas exatamente.
+- **Atribuição**: no SATELLITE, "Powered by Esri" (link esri.com) + a atribuição de dados do serviço, junto com OpenFreeMap/OpenMapTiles/OpenStreetMap (as overlays usam esses tiles); no DARK, só OpenFreeMap. Gerada pelo `AttributionControl` a partir das sources visíveis.
+- A Esri é provedor de basemap: não é IntelligenceSource, não entra em SOURCES nem em SourceHealth. A credential deve permitir o referrer `http://localhost:3000/*` (e o domínio público futuro).

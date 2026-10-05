@@ -140,7 +140,9 @@ src/
       CategoryIcon.tsx  # ícones SVG inline das categorias
       StatusBar.tsx     # SOURCES / ENTITIES / STATUS reais
     map/
-      MapView.tsx       # client wrapper: next/dynamic com ssr:false
+      MapView.tsx       # client wrapper: next/dynamic com ssr:false; estados projectionMode e basemapMode
+      SegmentedControl.tsx # controles GLOBE/FLAT e MAP/SATELLITE (uma instância por estado)
+      basemap-layer.ts  # troca DARK/SATELLITE dentro do style AURELIS (imagery + overlays, restauração)
       WorldMap.tsx      # instancia o MapLibre (somente no browser)
       earthquake-layer.ts # domínio → GeoJSON source + circle layer + layer de seleção
       iss-layer.ts      # domínio → source/layers da ISS (halo + núcleo + rótulo)
@@ -148,10 +150,12 @@ src/
       primitives.tsx    # moldura e peças comuns do Intelligence Panel
       EarthquakePanel.tsx # painel do terremoto selecionado
       IssPanel.tsx      # painel da ISS selecionada
-      IssCamera.tsx     # seção CAMERA: player oficial da NASA, criado só após VIEW CAMERA
+      IssCamera.tsx     # seção CAMERA: player oficial da NASA (aberto ao selecionar a ISS, sem autoplay)
   lib/
     categories.ts       # lista de categorias + tipo CategoryId
     format.ts           # formatação: UTC, coordenadas, magnitude, profundidade, tempo relativo
+    iss-trail.ts        # trilha recente da ISS: histórico limitado em memória + segmentação (lacunas, antimeridiano)
+    iss-interpolation.ts # suavização visual do marcador: interpolação entre posições recebidas (sem extrapolação)
     source-health.ts    # USGS_SYNC / ISS_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
     map-config.ts       # URL do basemap, view inicial, URL do worker
     sources/usgs/
@@ -191,7 +195,7 @@ docs/
 - **Basemap: style próprio `public/map-styles/aurelis-dark.json` sobre tiles vetoriais da OpenFreeMap** (schema OpenMapTiles, dados OpenStreetMap). Sem chave de API, sem cookies, uso comercial permitido, sem SLA. É o único recurso externo da aplicação, e é base cartográfica, não fonte de dados. Substituiu a CARTO Dark Matter (que tinha limites para uso comercial) na Etapa 4A. Detalhes em `docs/MAP_ARCHITECTURE.md`.
 - **Três camadas separadas no mapa:** *map data provider* (OpenFreeMap: geometria), *map style* (AURELIS: aparência, versionado no repo) e *AURELIS data layers* (futuras, adicionadas em runtime sobre o basemap, nunca dentro do style JSON).
 - **Atribuição obrigatória sempre visível:** "OpenFreeMap © OpenMapTiles Data from OpenStreetMap", declarada na source do style e exibida pelo `AttributionControl` em modo **não compacto** (o compacto recolhia o texto na primeira interação).
-- **Projeção Mercator** (padrão do MapLibre). Globo pode ser avaliado depois.
+- **Projeção**: desde a Etapa 5E o padrão é **globe** (nativo do MapLibre), com Mercator disponível como FLAT. Ver "Projeção globe" abaixo.
 - **Uma única cópia do mundo** (`renderWorldCopies: false` em `INITIAL_VIEW`). Uma entidade nunca deve aparecer duplicada em cópias laterais. Com essa opção, o MapLibre limita o zoom-out para que o mundo cubra a largura do mapa, então não aparecem faixas vazias.
 
 ### Identidade visual
@@ -232,7 +236,7 @@ Azul-marinho + dourado + ciano. Deve parecer uma ferramenta profissional de moni
 - `:focus-visible` global fica em `@layer base`, para que componentes possam substituí-lo (a busca usa a borda ciano do container).
 
 **Mapa**
-- **Continua 2D (Mercator).** Globo 3D adiado para uma etapa futura, como modo alternativo; nenhum botão ou biblioteca de globo.
+- *(Etapa 3)* Mapa 2D (Mercator); o globo ficou para depois. **Superado na Etapa 5E**: o padrão agora é globe nativo do MapLibre, com FLAT/Mercator disponível.
 - **Cores do mapa definidas no style próprio (Etapa 4A).** O filtro CSS provisório da Etapa 3 (`sepia/hue-rotate/saturate/brightness` sobre o canvas) foi **removido**. Não há `filter`, `backdrop-filter` nem `mix-blend-mode` sobre o canvas: futuras camadas de dados aparecem com suas cores reais. (O único `filter` restante é o `invert` dos ícones dos botões de zoom.)
 - Basemap discreto: oceano `#04091B` (= `--aurelis-bg`), terra `#0A1530`, fronteiras `#334262`, estradas que só ganham presença ao aproximar, rótulos em cinzas frios da paleta. **Dourado e ciano não aparecem no basemap.** Tabela completa em `docs/MAP_ARCHITECTURE.md`.
 - `renderWorldCopies: false` preservado.
@@ -314,7 +318,7 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **Cache no servidor**: não usa `unstable_cache`, que é stale-while-revalidate e serviria posições velhas de um objeto a ~7,7 km/s. Usa uma deduplicação mínima no módulo da rota: no máximo 1 chamada externa a cada 4 s, compartilhada por todos os clientes; requisições simultâneas reutilizam a busca em andamento; falhas não ficam guardadas. Teto ≈ 75 chamadas a cada 5 min (limite 350); posição servida com no máximo ~4 s.
 - **IntelligenceSource** `wtia-iss` ("Where The ISS At?", `category: "open-data"`, **`reliability: "unknown"`**).
 - **Entity** única e persistente: `space:norad:25544`, `category: "space"`, `kind: "space-station"`, `label: "International Space Station"` (NORAD 25544). Nunca é recriada por atualização.
-- **Observation** por posição recebida: `wtia:25544:<timestamp>`. Só a mais recente fica no snapshot (sem histórico, sem trilha).
+- **Observation** por posição recebida: `wtia:25544:<timestamp>`. Só a mais recente fica no snapshot; a trilha recente (Etapa 5D) é um histórico limitado em memória no cliente, não no snapshot.
 - **`nature: "estimated"`**: a posição é calculada orbitalmente pela fonte, não é um fix GPS observado. `confidence: "unknown"`. **`precision: "approximate"`**.
 - **Tempos**: `timestamp` (Unix s, instante ao qual a posição se aplica) → `observedAt`. **Sem `reportedAt`**: a API não fornece horário de publicação. `ingestedAt` = recebimento pelo servidor AURELIS.
 - **Proveniência reproduzível**: `sourceRecordId: "25544"`; `sourceUrl` = `…/satellites/25544?timestamp=<ts>&units=kilometers`, que devolve exatamente a mesma posição calculada (verificado).
@@ -338,11 +342,11 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 | resto (só syncing/unavailable, sem snapshot) | unavailable | ○ UNAVAILABLE | DEGRADED |
 
   O title da Topbar lista o estado de cada fonte (ex.: "USGS Earthquakes: FRESH · Where The ISS At?: STALE"). LIVE só fica ativo com todas as fontes fresh. **SOURCES** = fontes com snapshot utilizável; **ENTITIES** = soma das entidades atuais (terremotos + 1 ISS), nunca observations.
-- **Mapa**: source própria `aurelis-iss-source` com `aurelis-iss-halo-layer` (anel), `aurelis-iss-layer` (núcleo sólido) e `aurelis-iss-label-layer` ("ISS"), acima dos terremotos. Ciano normal, **dourado quando selecionada**. Posição atualizada via `setData`; mapa nunca recriado; sem trilha, sem interpolação, sem footprint visual. Um único handler de clique/cursor consulta as camadas de dados e escolhe a feição de cima.
+- **Mapa**: source própria `aurelis-iss-source` com uma symbol layer `aurelis-iss-layer` (anel + núcleo + "ISS"; até a 5F eram circle layers de anel/núcleo + symbol de rótulo), acima dos terremotos. Ciano normal, **dourado quando selecionada**. Posição atualizada via `setData`; mapa nunca recriado; sem trilha, sem interpolação, sem footprint visual. Um único handler de clique/cursor consulta as camadas de dados e escolhe a feição de cima.
 - **Painéis**: `EarthquakePanel` e `IssPanel` separados, sobre `primitives.tsx` (moldura, linhas, horários UTC, link da fonte); nunca dois ao mesmo tempo. A seleção continua por Entity ID e troca de painel ao clicar em outra fonte. Com a ISS selecionada, posição, altitude, velocidade, `observedAt` e `ingestedAt` se atualizam a cada poll. Se a fonte do item aberto não está fresh, a moldura mostra "SOURCE STALE · showing the last known data…".
 - **Falha da ISS**: com snapshot, o ponto e o painel ficam na última posição conhecida e a fonte vira STALE (global PARTIAL se o USGS estiver fresh). Sem snapshot, nenhum ponto é desenhado e a fonte fica UNAVAILABLE.
 - Sidebar: categoria **SPACE** (visual, sem filtro) e as duas fontes listadas com estado próprio.
-- **Sem histórico, sem órbita, ground track ou footprint, sem outra fonte SPACE.** (A câmera oficial entrou na Etapa 5C, abaixo.)
+- **Sem histórico persistente, sem órbita, ground track ou footprint, sem outra fonte SPACE.** (A câmera oficial entrou na Etapa 5C e a trilha recente na 5D, abaixo.)
 
 ### Câmera oficial da NASA na ISS (Etapa 5C)
 
@@ -358,7 +362,7 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - O outro stream oficial da NASA sobre a ISS (`M3HKLzjvKPc`, vistas internas e externas, tela azul na perda de sinal) não foi usado.
 - **Configuração**: `src/lib/sources/nasa/iss-media.ts` (`NASA_ISS_STREAM`: provider NASA, platform youtube, videoId, watchUrl, embedUrl, sourceUrl do canal, entityId). Nenhum video ID no componente. Não há framework genérico de mídia.
 - **AURELIS não hospeda nem retransmite**: só incorpora o player oficial do YouTube. Sem scraping, download, proxy, YouTube Data API, OAuth, endpoint `/api/youtube`, consulta de status, viewers ou chat.
-- **Privacidade / carregamento**: o YouTube é um **serviço externo carregado apenas sob ação do usuário**. Antes de VIEW CAMERA não existe iframe nem nenhuma requisição ao YouTube (verificado: 0 iframes, 0 requisições). O texto avisa "External video provided by NASA via YouTube. It loads only when you open it." Usa o domínio `youtube-nocookie.com`. Não há modal de consentimento nesta etapa.
+- **Privacidade / carregamento**: o YouTube é um **serviço externo carregado apenas sob ação do usuário**. Na abertura do app não existe iframe nem requisição ao YouTube. *(Etapa 5C: o player só nascia após VIEW CAMERA; desde a 5D, nasce quando o usuário seleciona a ISS. Ver abaixo.)* O texto avisa "External video provided by NASA via YouTube. It loads only when you open it." Usa o domínio `youtube-nocookie.com`. Não há modal de consentimento nesta etapa.
 - **Sem autoplay** e sem áudio automático (sem `autoplay` na URL nem no `allow`). Atributos do iframe:
   - `title`, `loading="lazy"`, `allowFullScreen`;
   - `referrerPolicy="strict-origin-when-cross-origin"`;
@@ -367,12 +371,100 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **Ciclo de vida**: estado local `cameraOpen` no `IssPanel`, que é montado por seleção (`key` = Entity ID). Por isso:
   - CLOSE CAMERA remove o iframe do DOM (não só esconde), o que interrompe o player;
   - fechar o painel (X ou Escape) ou selecionar outra Entity desmonta o painel e o iframe some na hora;
-  - ao voltar para a ISS, a câmera começa fechada.
+  - ao voltar para a ISS, a câmera começa fechada *(regra da 5C; na 5D passou a começar aberta)*.
   - A telemetria continua atualizando com o player aberto, sem recriar o iframe.
 - **Independente do SourceHealth**: a mídia NASA não é monitorada programaticamente e não participa de FRESH/STALE/UNAVAILABLE/PARTIAL/LIVE, nem de SOURCES ou ENTITIES (continuam USGS + WTIA; ENTITIES inalterado). Com a WTIA STALE, a seção CAMERA continua disponível e o vídeo não é considerado stale.
 - **Layout**: o painel cresce moderadamente (360 → 440 px, limitado a 50vw) só enquanto a câmera está aberta. Não é modal nem fullscreen; o mesmo bloco poderá ir para um bottom sheet no mobile. Em 900 px de largura funciona sem rolagem horizontal, mas o mapa fica estreito (~220 px).
 - Mapa sem alteração: nenhum ícone de câmera sobre o planeta.
 - **Câmeras públicas genéricas continuam fora do escopo.** Nenhuma outra câmera, NASA TV, Hubble, Tiangong, webcam terrestre, chat, gravação, screenshot, PiP/fullscreen customizados nem status live/offline inferido.
+
+### Trilha recente da ISS e câmera aberta por padrão (Etapa 5D)
+
+**Trilha (recent tracked path).**
+
+- **O que é**: histórico recente das posições que o AURELIS **realmente recebeu** da Where The ISS At? (posições estimadas pela fonte, `nature: "estimated"`). **Não é órbita prevista**: sem TLE, sem propagação orbital, sem satellite.js, sem ground track, sem trajetória futura.
+- **Regra do histórico** (`src/lib/iss-trail.ts`): em memória no cliente (`Workspace`), alimentado a cada snapshot bem-sucedido da ISS. Guarda posições com `observedAt` dentro de **10 min** antes da mais recente, no máximo **120 pontos** (10 min a 1 posição a cada 5 s). Posições repetidas ou fora de ordem (a deduplicação de 4 s do servidor pode devolver a mesma) são ignoradas. Nada é persistido nem acumulado além disso (não é o Echo); recarregar a página zera a trilha.
+- **STALE**: a janela é relativa à posição mais nova, então, com a WTIA falhando, nada expira e nada é inventado; a trilha fica parada junto com o último marcador. Ao recuperar, volta a acumular.
+- **Lacunas**: posições consecutivas a mais de **30 s** (6 polls) não são ligadas, porque o trecho entre elas não foi rastreado (fonte stale, aba em segundo plano, recuperação). A trilha vira vários segmentos.
+- **Antimeridiano**: quando duas posições consecutivas diferem mais de 180° em longitude, a latitude de cruzamento é interpolada, o segmento termina em ±180° e o próximo recomeça em ∓180°. Geometria: `MultiLineString`. Nenhuma linha atravessa o mapa (com `renderWorldCopies: false`, os dois lados ficam nas bordas opostas).
+- **Mapa**: source `aurelis-iss-trail-source` + layer `aurelis-iss-trail-layer` (linha ciano, opacidade 0.55, 1.5 px, abaixo do marcador). Atualizada com `setData` só quando chega posição nova (geometria memorizada; o relógio de 1 s não a recalcula). **Visível apenas com a ISS selecionada** (marcador dourado + trilha ciano). Não é clicável.
+- **Painel**: linha **TRACKED PATH** ("N positions · Recent tracked path since HH:MM:SS UTC, shown on the map. Received positions only; not an orbit prediction.").
+- A trilha **não** cria Entity, não conta em ENTITIES e não é fonte separada.
+
+**Câmera aberta por padrão.**
+
+- Ao **selecionar a ISS**, o painel abre com a seção CAMERA **já aberta** e o player oficial da NASA montado (seleção = ação do usuário). Na abertura do app nada do YouTube carrega.
+- **Sem autoplay**: nenhum parâmetro de autoplay nem permissão `autoplay` no iframe. O player mostra a capa e o botão de play do próprio YouTube, e o usuário dá play se quiser. O texto diz "External video provided by NASA via YouTube; it does not play automatically." mais o aviso de possível footage gravado. Continua sem afirmar LIVE.
+- **Regra de controle**:
+  - **HIDE CAMERA** remove o iframe do DOM e vale só para a seleção atual; **SHOW CAMERA** o recria.
+  - Trocar de Entity ou fechar o painel (X/Escape) desmonta o painel e o iframe.
+  - Voltar a selecionar a ISS reabre com a câmera visível (`IssPanel` é montado por seleção, `cameraOpen` inicia `true`).
+- Continua fora de SourceHealth, SOURCES e ENTITIES; nenhum player flutuante no mapa.
+
+### Movimento suave da ISS (Etapa 5D — smooth visual movement)
+
+- **Polling inalterado**: a ISS continua sendo consultada a cada ~5 s. A suavização é **somente visual**, no cliente.
+- **Atraso visual intencional de ~5 s** (`VISUAL_DELAY_MS`): o marcador é desenhado no instante `displayTime = agora − 5 s`, na linha do tempo das Observations (`observedAt`). O relógio do cliente é ajustado pela menor diferença observada entre recebimento e `observedAt`, então o desvio de relógio do cliente não afeta o atraso. Não é latência da fonte.
+- **Interpolação só entre Observations recebidas** (`src/lib/iss-interpolation.ts`, funções puras): acha as duas posições recebidas que cercam `displayTime`, calcula o progresso por timestamps (limitado a 0–1) e interpola latitude/longitude linearmente. **Sem previsão, sem extrapolação, sem velocidade estimada.**
+- **Antimeridiano**: a longitude é interpolada pelo **menor caminho** (179,8° → −179,8° passa por ±180°, não dá a volta no planeta) e normalizada para [−180, 180].
+- **Casos de borda**: com uma única posição, ela aparece imediatamente; antes da primeira ou depois da última, o marcador fica nela. Com a **WTIA STALE**, o marcador termina o trecho conhecido e **para na última posição recebida**. Entre posições separadas por lacuna > 30 s (a mesma regra da trilha), o marcador espera na anterior em vez de animar um trecho não rastreado.
+- **Domínio intacto**: Entity, Observation, `observedAt`, altitude e o painel continuam usando a Observation **mais recente**. Nenhuma Observation nova é criada. **A trilha não recebe pontos interpolados**: continua só com posições recebidas (10 min / 120 pontos). Ela termina na posição recebida mais recente, que fica ~5 s à frente do marcador.
+- **Animação**: um único laço de `requestAnimationFrame` no `WorldMap`, independente da seleção. Atualiza **apenas** a source `aurelis-iss-source` (e só quando a posição muda), sem estado React por frame, sem recriar mapa ou layers. É cancelado no cleanup, então o StrictMode não deixa laços duplicados. O navegador pausa o `requestAnimationFrame` em abas ocultas.
+- **Painel**: linha **SMOOTH DISPLAY** ("~5 s visual delay"; "The map marker is drawn about 5 seconds behind, moving between received observations. Values in this panel are the latest observation.").
+- Não implementado: previsão orbital, TLE, satellite.js, ground track, órbita, follow mode, zoom automático, visão de satélite.
+
+### Projeção globe (Etapa 5E)
+
+- **`projectionMode: "globe" | "mercator"`** (`ProjectionMode` em `src/lib/map-config.ts`). **Default: `globe`**. Motivos: menos distorção perto dos polos, escala relativa dos continentes mais fiel, coerência com SPACE, preparo para satélite.
+- **Separado do basemap**: a projeção não muda o mapa base, que continua **OpenFreeMap + style AURELIS** (sem Esri). No futuro, um `basemapMode` independente (ex.: satellite) vai se combinar com qualquer projeção (globe/mercator × dark/satellite).
+- **Implementação**: projeção **nativa** do MapLibre GL JS (`map.setProjection({ type })`), no mesmo mapa; sem Cesium, Three.js ou renderer paralelo. Aplicada no evento `style.load` (sem piscar em Mercator na abertura) e a cada troca. Trocar a projeção não recria o mapa, as sources, as layers nem o estado (seleção, painel, trilha, dados).
+- **Controle**: GLOBE / FLAT (desde a 5F via `SegmentedControl`), compacto, no canto superior esquerdo do mapa; FLAT = Mercator atual. Estado de sessão no `MapView`, **não persistido** (sem localStorage).
+- **Atmosfera**: `map.setSky` nativo, muito sutil (`sky-color` = `--aurelis-bg`, `horizon-color` = `--aurelis-blue`, `atmosphere-blend` 0.35 no zoom 0 → 0 no zoom 6). Sem estrelas, nuvens nem terminador. Observação: o oceano do style tem a mesma cor do fundo, então o contorno do disco aparece sobretudo pela atmosfera.
+- **Interação**: zoom, arrasto (gira o globo) e seleção de features continuam iguais; sem auto-rotação nem animações.
+- **`renderWorldCopies: false`** continua valendo para o Mercator e não tem efeito no globo (há só um mundo).
+- **Camadas AURELIS**: terremotos, ISS (movimento suave, ~5 s de atraso visual), trilha, seleção dourada, painéis e câmera funcionam igual no globo, acima do basemap. Labels e hierarquia por zoom não mudaram.
+- **Trilha e antimeridiano**: a lógica não mudou. A divisão em ±180° (`trailToSegments`) continua necessária para o Mercator (não atravessar o mapa) e, no globo, os dois segmentos se encontram no mesmo ponto da esfera, então a linha aparece contínua. Verificado nas duas projeções.
+- Não implementado: Esri/World Imagery, modo satélite, terrain/DEM, prédios 3D, órbita, estrelas, nuvens, terminador dia/noite, auto-rotação.
+
+### Basemap satélite — Esri World Imagery (Etapa 5F)
+
+- **Dois estados independentes**: `projectionMode: "globe" | "mercator"` (default globe) e `basemapMode: "dark" | "satellite"` (`BasemapMode` em `src/lib/map-config.ts`, default **dark**). As quatro combinações funcionam (globe/mercator × dark/satellite). São controles separados, MAP/SATELLITE e GLOBE/FLAT, com estado de sessão no `MapView`, não persistido.
+- **DARK** = OpenFreeMap + style AURELIS (comportamento anterior, inalterado e restaurado exatamente ao voltar).
+- **SATELLITE** = **Esri World Imagery** + overlays de referência AURELIS (fronteiras e rótulos de lugares) + dados operacionais AURELIS.
+- **Método oficial e autenticado**: o **ArcGIS Basemap Styles service v2**, style `arcgis/imagery` (`basemapstyles-api.arcgis.com/.../styles/v2/styles/arcgis/imagery`), consultado com a API key. Do style retornado usa-se **apenas a source raster de World Imagery** (URL dos tiles autenticada `ibasemaps-api.arcgis.com/.../World_Imagery/MapServer/tile/{z}/{y}/{x}` e atribuição, exatamente como o serviço devolve), adicionada como layer raster logo acima do `background`.
+  - **Não** se usa `setStyle()` com o style da Esri, que recriaria as layers AURELIS; o AURELIS continua controlando o mapa.
+  - **Não** se usa o endpoint legado `server.arcgisonline.com`.
+  - **Sem dependência nova**: o plugin `@esri/maplibre-arcgis` aplica o style inteiro.
+  - O ArcGIS Static Basemap Tiles service não oferece `arcgis/imagery` (só `arcgis/imagery/labels`).
+- **Carregamento**: nada da Esri é requisitado em DARK. O style é consultado só na primeira vez que SATELLITE é selecionado. Ao voltar para DARK a layer fica oculta e o MapLibre para de pedir tiles (verificado: nenhuma requisição nova ao mover o mapa em DARK). Sem cache customizado.
+- **Overlays no SATELLITE** (`src/components/map/basemap-layer.ts`):
+  - ficam visíveis só as layers `boundary_*` e `place_*` do style AURELIS; preenchimentos, água, vegetação, vias, ferrovias, edifícios etc. ficam ocultos (visibilidade, sem destruir layers);
+  - rótulos em `--aurelis-text` com halo `--aurelis-bg` (1.4 px, blur 0.5), para ficarem legíveis sobre oceano, floresta, deserto e neve;
+  - fronteiras nacionais em `--aurelis-text-muted` e estaduais em `--aurelis-text-subtle`, finas, mantendo os zooms atuais;
+  - os valores originais de visibilidade e pintura são guardados e **restaurados exatamente** em DARK (verificado por comparação).
+- **Ordem**: imagery (logo acima do background) < overlays de referência < terremotos < trilha da ISS < ISS (ciano = dados, dourado = selecionado). A ISS (polling, interpolação, atraso visual, trilha, câmera) e o SourceHealth não mudaram.
+- **Atribuição**:
+  - a Esri exige "Powered by Esri" (com link para esri.com) e a atribuição de dados vinda do serviço; a source raster leva "Powered by Esri · " + a string `attribution` do serviço (hoje "Source: Esri, Vantor, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community"), escapada como texto;
+  - o `AttributionControl` do MapLibre mostra só as fontes efetivamente visíveis: no SATELLITE, Esri + OpenFreeMap (as overlays usam OpenMapTiles); no DARK, só OpenFreeMap;
+  - tamanho: no SATELLITE a atribuição usa 12 px (recomendação da Esri: 12 px ou mais), via classe `aurelis-basemap-satellite` no container do mapa; no MAP continua com 10 px (OpenFreeMap/OSM).
+- **Falha**: se o style da Esri não puder ser obtido, um aviso é registrado no console, o modo volta para DARK e o botão SATELLITE indica a falha no title. Erros de tiles também são registrados uma vez. A Esri **não** tem SourceHealth.
+- **API key**: vem de `NEXT_PUBLIC_ARCGIS_API_KEY` (`.env.local`, ignorado pelo Git). O valor **nunca** é documentado nem versionado. Ela é usada pelo navegador por design (autenticação por API key em app público); a segurança vem das **restrições de referrer da credential**, não de ocultar a chave (sem ofuscação nem proxy). A credential deve autorizar `http://localhost:3000/*` em desenvolvimento e, no futuro, o domínio público do AURELIS. Sem chave, o botão SATELLITE fica desabilitado.
+- **Esri é provedor de basemap** (infraestrutura visual): **não** é `IntelligenceSource`, **não** conta em SOURCES e **não** participa de SourceHealth.
+- Não implementado: Google, MapTiler, terrain/DEM, prédios 3D, nuvens, radar, imagery NASA/Sentinel, labels extras da Esri, time slider, imagery histórica, data de captura, download, cache offline.
+
+### Altitude real da ISS no globo (Etapa 5G)
+
+- **GLOBE**: o marcador da ISS e o rótulo "ISS" são desenhados na **altitude orbital reportada**, em escala real (sem exagero), com o recurso nativo do MapLibre `symbol-height-offset` (metros, layout data-driven `["get", "altitudeMeters"]`). Sem Three.js, Cesium, custom WebGL layer nem dependência nova.
+- **Origem**: `altitudeKm` da Observation (WTIA). A conversão `altitudeMeters = altitudeKm × 1000` é só de apresentação (propriedade da feature no mapa); nenhuma altitude nova entra no domínio.
+- **Representação**: as antigas circle layers (anel, núcleo) e a symbol de rótulo viraram **uma única symbol layer** `aurelis-iss-layer` (ícone anel + núcleo desenhado em canvas, com o texto "ISS"), porque circle layers não suportam altura. Aparência preservada: ciano normal, dourado selecionada (troca de `icon-image` e `text-color`). Marcador e rótulo sobem juntos.
+- **Mesmo instante visual**: os pontos recebidos guardam também `altitudeKm`; `interpolatePosition` interpola latitude, longitude **e altitude** no mesmo `displayTime` (~5 s de atraso). Sem extrapolação: sem próxima Observation, posição e altitude param na última recebida. Nenhuma Observation intermediária é criada.
+- **FLAT (mercator)**: `symbol-height-offset` = 0; a ISS continua sobre o mapa. A altitude segue disponível no painel.
+- **Trilha**: **não** é elevada. Continua o **ground track** recente sobre a superfície (só posições recebidas, 10 min / 120 pontos, antimeridiano tratado). No painel, TRACKED PATH passou a dizer "Recent ground track … drawn on the surface".
+- **Seleção**: `queryRenderedFeatures` atinge o símbolo elevado normalmente (sem hit-testing customizado); clicar nele seleciona `space:norad:25544`.
+- **Oclusão**: com a ISS atrás da Terra, o símbolo não é desenhado (verificado: 0 feições renderizadas com a câmera do lado oposto).
+- **Painel**: ALTITUDE continua sendo o valor da Observation mais recente, com a nota "Rendered at reported orbital altitude on globe."
+- Funciona em GLOBE + MAP e GLOBE + SATELLITE; a integração Esri não mudou.
+- Não implementado: modelo 3D, órbita prevista, TLE, satellite.js, linha vertical, footprint, sombra, iluminação, outros satélites, auto-follow.
 
 ### Dívida técnica
 
@@ -415,10 +507,10 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - Persistência e histórico de observações; reconciliação de Entity IDs por `ids` do USGS.
 - Clustering, popup, tooltip; endpoint Detail do USGS.
 - Outras fontes SPACE (Hubble, Tiangong, CelesTrak…), satellite.js, órbita, ground track, footprint visual, outras câmeras/streams (a única mídia é o stream oficial da NASA da ISS), clima espacial.
-- Histórico de posições da ISS (Echo).
+- Histórico persistente de posições da ISS (Echo); a trilha atual é só memória recente (10 min / 120 pontos).
 - Estruturas especializadas para outros domínios (avião, navio, malware…) e identificadores naturais.
 - Validação de payload com biblioteca de schema (hoje: validação mínima manual no adapter).
-- Globo 3D (modo alternativo futuro).
+- Preferências de projeção/basemap persistidas.
 - Self-hosting dos tiles (a instância pública da OpenFreeMap não tem SLA).
 - Sistema de cores de severidade.
 - Busca funcional; filtros/seleção de camadas.
@@ -450,3 +542,9 @@ npm start
 2026-10-05 14:24 | lib/sources/wtia, app/api/space/iss, types/space.ts, components/useSourceSync.ts, map/iss-layer.ts, panel/{primitives,EarthquakePanel,IssPanel}, Workspace, Topbar, StatusBar, Sidebar, categories, lib/source-health.ts | Etapa 5B: segunda fonte, Where The ISS At? (NORAD 25544). Primeira Entity móvel (space:norad:25544), nature estimated, precisão approximate, observedAt = timestamp da fonte, sem reportedAt. Poll de 5 s, janela de 15 s, dedupe de 4 s no servidor. SourceHealth por fonte + estado global agregado (live/partial/stale/unavailable/syncing). Camadas e painel próprios; seleção ciano→dourado. Sem histórico e sem câmera.
 2026-10-05 14:45 | AURELIS_CONTEXT.md, README.md, types/space.ts, sources/wtia/iss.ts, panel/IssPanel.tsx | Etapa 5A (executada após a 5B): visão e escopo oficiais (painel pessoal de consciência situacional global; não comercial; experimento pessoal de desenvolvimento assistido por IA, sem a IA como autora), filosofia, mapa vs painéis, domínios, câmeras, roadmap, regra de polling, mobile, conceitos futuros, estado atual. Velocidade da ISS corrigida: `velocityKph` → `velocity` bruto + `velocityUnit: "unknown"` (unidade não documentada pela fonte). Nenhuma outra mudança funcional.
 2026-10-05 15:08 | lib/sources/nasa/iss-media.ts, panel/IssCamera.tsx, panel/IssPanel.tsx, panel/primitives.tsx | Etapa 5C: câmera oficial da NASA associada à ISS (YouTube awQzjn72bI0, canal @NASA, embed youtube-nocookie). Primeira mídia externa ligada a uma Entity; iframe criado só após VIEW CAMERA e removido ao fechar câmera/painel ou trocar de Entity; sem autoplay; aviso de possível 'Previously Recorded'; fora do SourceHealth, de SOURCES e de ENTITIES. Velocidade da ISS: painel mostra '—' (unidade não documentada); valor bruto preservado no modelo.
+2026-10-05 15:41 | lib/iss-trail.ts, map/iss-layer.ts, WorldMap, MapView, Workspace, panel/IssPanel.tsx, panel/IssCamera.tsx | Etapa 5D: trilha recente da ISS (somente posições recebidas; 10 min / 120 pontos em memória; quebra em lacunas > 30 s; split no antimeridiano com latitude interpolada; MultiLineString; visível só com a ISS selecionada; não é órbita). Câmera da ISS aberta por padrão ao selecionar a ISS, sem autoplay; HIDE/SHOW CAMERA; iframe desmontado ao sair da ISS; fora do SourceHealth.
+2026-10-05 15:59 | lib/iss-interpolation.ts, map/WorldMap.tsx, map/iss-layer.ts, map/MapView.tsx, Workspace, panel/IssPanel.tsx | Etapa 5D (smooth movement): marcador da ISS interpolado entre posições recebidas, ~5 s atrás da Observation mais recente; longitude pelo menor caminho no antimeridiano; para na última posição se a fonte fica stale; não anima lacunas > 30 s; polling continua em ~5 s; nenhuma Observation ou ponto de trilha interpolado criado; um só laço de requestAnimationFrame atualizando apenas a source da ISS.
+2026-10-05 17:06 | lib/map-config.ts, map/MapView.tsx, map/ProjectionToggle.tsx, map/WorldMap.tsx | Etapa 5E: projeção globe nativa do MapLibre como padrão (projectionMode globe|mercator, separado do basemap); controle GLOBE/FLAT não persistido; atmosfera sutil via setSky; troca de projeção sem recriar mapa/estado; camadas, ISS, trilha (antimeridiano verificado nas duas projeções) e painéis inalterados. Basemap continua OpenFreeMap + style AURELIS; Esri não usada.
+2026-10-05 17:16 | lib/esri-imagery.ts, lib/map-config.ts, map/basemap-layer.ts, map/SegmentedControl.tsx, map/MapView.tsx, map/WorldMap.tsx | Etapa 5F: basemapMode dark|satellite independente da projeção; SATELLITE = Esri World Imagery (raster do Basemap Styles v2 arcgis/imagery, autenticado por API key via env, carregado só ao selecionar) + overlays AURELIS (fronteiras, rótulos) restilizados e restaurados exatamente em DARK; atribuição 'Powered by Esri' + fonte de dados do serviço; fallback para DARK em falha; Esri fora de SOURCES/SourceHealth. ProjectionToggle substituído por SegmentedControl.
+2026-10-05 17:40 | globals.css, map/MapView.tsx | Revisão final 5F: atribuição em 12 px no SATELLITE (10 px mantidos no MAP); auditoria de tokens sem ocorrências persistidas; chave só em .env.local (ignorado).
+2026-10-05 21:20 | map/iss-layer.ts, lib/iss-interpolation.ts, lib/iss-trail.ts, map/WorldMap.tsx, Workspace.tsx, panel/IssPanel.tsx | Etapa 5G: no GLOBE a ISS (marcador + rótulo, agora uma symbol layer) fica na altitude orbital reportada via symbol-height-offset nativo (altitudeKm×1000, escala real); altitude interpolada no mesmo displayTime (~5 s); FLAT sem elevação; trilha continua ground track na superfície; sem previsão orbital.
