@@ -2,68 +2,31 @@ import type {
   AurelisEntity,
   EarthquakeObservation,
   IntelligenceSource,
+  SourceHealth,
 } from "@/types";
 import {
   formatDepthKm,
   formatLatitude,
   formatLongitude,
   formatMagnitude,
-  formatUtc,
 } from "@/lib/format";
-
-const EMPTY = "—";
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="grid grid-cols-[8.5rem_1fr] gap-3 py-1.5">
-      <dt className="pt-px text-[10px] font-medium tracking-[0.18em] text-fg-subtle">
-        {label}
-      </dt>
-      <dd className="min-w-0 break-words text-[12px] text-fg">{children}</dd>
-    </div>
-  );
-}
-
-function Note({ children }: { children: React.ReactNode }) {
-  return <span className="mt-0.5 block text-[11px] leading-snug text-fg-subtle">{children}</span>;
-}
-
-function Time({ iso }: { iso: string | undefined }) {
-  const t = formatUtc(iso);
-  if (!t) return <>{EMPTY}</>;
-  return (
-    <span className="font-mono">
-      {t.date}
-      <br />
-      {t.time}
-    </span>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="border-t border-line px-4 py-3">
-      <h3 className="mb-1 text-[10px] font-medium tracking-[0.28em] text-fg-subtle">
-        {title}
-      </h3>
-      <dl>{children}</dl>
-    </section>
-  );
-}
+import { EMPTY, Note, PanelShell, Row, Section, SourceLink, Time } from "./primitives";
 
 /**
- * Fixed right-hand panel for the selected entity. Reads only data already
+ * Intelligence Panel for a selected earthquake. Reads only data already
  * loaded through /api/earthquakes; never fetches.
  */
-export default function IntelligencePanel({
+export default function EarthquakePanel({
   entity,
   observation,
   source,
+  sourceHealth,
   onClose,
 }: {
   entity: AurelisEntity;
   observation: EarthquakeObservation;
   source: IntelligenceSource;
+  sourceHealth: SourceHealth;
   onClose: () => void;
 }) {
   const { data, location } = observation;
@@ -71,32 +34,12 @@ export default function IntelligencePanel({
   const place = data.place ?? entity.label;
 
   return (
-    <aside
-      aria-label="Intelligence panel"
-      className="flex w-[360px] shrink-0 flex-col overflow-y-auto border-l border-line bg-surface"
+    <PanelShell
+      eyebrow="EARTHQUAKE"
+      title={place ?? EMPTY}
+      sourceHealth={sourceHealth}
+      onClose={onClose}
     >
-      <header className="flex items-start gap-3 px-4 pb-3 pt-4">
-        <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-[10px] font-medium tracking-[0.28em] text-fg-subtle">
-            <span className="size-1.5 rounded-full bg-gold" aria-hidden="true" />
-            EARTHQUAKE
-          </p>
-          <h2 className="mt-1.5 text-[15px] font-medium leading-snug text-fg">
-            {place ?? EMPTY}
-          </h2>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close intelligence panel"
-          className="-mr-1 grid size-7 shrink-0 place-items-center rounded text-fg-subtle transition-colors hover:bg-elevated hover:text-fg"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
-            <path d="M6 6l12 12M18 6L6 18" />
-          </svg>
-        </button>
-      </header>
-
       <div className="flex items-baseline gap-2 px-4 pb-4">
         <span className="font-mono text-[30px] leading-none text-cyan">
           {magnitude ?? EMPTY}
@@ -180,21 +123,8 @@ export default function IntelligencePanel({
       </Section>
 
       {observation.sourceUrl && (
-        <div className="border-t border-line px-4 py-4">
-          <a
-            href={observation.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex h-8 items-center justify-center gap-2 rounded border border-line text-[10px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
-          >
-            OPEN ORIGINAL SOURCE
-            <span className="sr-only">(USGS event page, opens in a new tab)</span>
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
-            </svg>
-          </a>
-        </div>
+        <SourceLink href={observation.sourceUrl} srText="USGS event page" />
       )}
-    </aside>
+    </PanelShell>
   );
 }

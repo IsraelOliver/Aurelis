@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { EarthquakeFeed } from "@/types";
+import type { EarthquakeFeed, IssFeed } from "@/types";
 
 const WorldMap = dynamic(() => import("./WorldMap"), {
   ssr: false,
@@ -14,10 +14,12 @@ const WorldMap = dynamic(() => import("./WorldMap"), {
 
 export default function MapView({
   earthquakes,
+  iss,
   selectedEntityId,
   onSelectEntity,
 }: {
   earthquakes: EarthquakeFeed | null;
+  iss: IssFeed | null;
   selectedEntityId: string | null;
   onSelectEntity: (entityId: string) => void;
 }) {
@@ -25,6 +27,7 @@ export default function MapView({
     <div className="relative h-full w-full bg-base">
       <WorldMap
         earthquakes={earthquakes}
+        iss={iss}
         selectedEntityId={selectedEntityId}
         onSelectEntity={onSelectEntity}
       />

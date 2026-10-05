@@ -12,15 +12,25 @@ import {
   INITIAL_VIEW,
   MAPLIBRE_WORKER_URL,
 } from "@/lib/map-config";
-import type { EarthquakeFeed } from "@/types";
+import { ISS_ENTITY_ID } from "@/lib/sources/wtia/source";
+import type { EarthquakeFeed, IssFeed } from "@/types";
 import {
   EARTHQUAKES_LAYER_ID,
   addEarthquakeLayer,
   setEarthquakeData,
   setSelectedEarthquake,
 } from "./earthquake-layer";
+import {
+  ISS_INTERACTIVE_LAYERS,
+  addIssLayer,
+  setIssData,
+  setIssSelected,
+} from "./iss-layer";
 
 setWorkerUrl(MAPLIBRE_WORKER_URL);
+
+/** Clickable data layers, top-most first (the ISS is drawn above earthquakes). */
+const INTERACTIVE_LAYERS = [...ISS_INTERACTIVE_LAYERS, EARTHQUAKES_LAYER_ID];
 
 /**
  * World map. Browser-only: imported through MapView with ssr: false,
@@ -31,10 +41,12 @@ setWorkerUrl(MAPLIBRE_WORKER_URL);
  */
 export default function WorldMap({
   earthquakes,
+  iss,
   selectedEntityId,
   onSelectEntity,
 }: {
   earthquakes: EarthquakeFeed | null;
+  iss: IssFeed | null;
   selectedEntityId: string | null;
   onSelectEntity: (entityId: string) => void;
 }) {
@@ -66,17 +78,19 @@ export default function WorldMap({
 
     map.on("load", () => {
       addEarthquakeLayer(map);
+      addIssLayer(map);
 
-      map.on("click", EARTHQUAKES_LAYER_ID, (event) => {
-        // First feature is the top-most rendered one.
-        const entityId = event.features?.[0]?.properties?.entityId;
+      // One handler for all data layers: the top-most feature wins.
+      map.on("click", (event) => {
+        const [feature] = map.queryRenderedFeatures(event.point, {
+          layers: INTERACTIVE_LAYERS,
+        });
+        const entityId = feature?.properties?.entityId;
         if (typeof entityId === "string") onSelectRef.current(entityId);
       });
-      map.on("mouseenter", EARTHQUAKES_LAYER_ID, () => {
-        map.getCanvas().style.cursor = "pointer";
-      });
-      map.on("mouseleave", EARTHQUAKES_LAYER_ID, () => {
-        map.getCanvas().style.cursor = "";
+      map.on("mousemove", (event) => {
+        const hit = map.queryRenderedFeatures(event.point, { layers: INTERACTIVE_LAYERS });
+        map.getCanvas().style.cursor = hit.length > 0 ? "pointer" : "";
       });
 
       setStyleReady(true);
@@ -97,7 +111,14 @@ export default function WorldMap({
 
   useEffect(() => {
     if (styleReady && mapRef.current) {
+      setIssData(mapRef.current, iss);
+    }
+  }, [styleReady, iss]);
+
+  useEffect(() => {
+    if (styleReady && mapRef.current) {
       setSelectedEarthquake(mapRef.current, selectedEntityId);
+      setIssSelected(mapRef.current, selectedEntityId === ISS_ENTITY_ID);
     }
   }, [styleReady, selectedEntityId]);
 

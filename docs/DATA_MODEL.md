@@ -12,7 +12,8 @@ São apenas tipos (sem banco). A validação runtime de dados externos fica nos 
 | `observation.ts`  | `Observation<T>`, `EvidenceNature`                        |
 | `relationship.ts` | `EntityRelationship`, `RelationshipNature`                |
 | `earthquake.ts`   | `EarthquakeObservationData`, `EarthquakeFeed` (dados específicos de terremoto) |
-| `source-health.ts`| `SourceHealth`, `SourceSyncState` (estado técnico da integração) |
+| `space.ts`        | `IssObservationData`, `IssFeed` (dados específicos da ISS) |
+| `source-health.ts`| `SourceHealth`, `SourceSyncState`, `GlobalHealth` (estado técnico da integração) |
 
 Regra central: **o AURELIS nunca apresenta uma interpretação como se fosse uma observação comprovada.**
 
@@ -72,6 +73,7 @@ Um fornecedor de informação (feed, API, dataset, publicação).
 - `reliability` é uma avaliação **geral** da fonte. Não significa que todo dado daquela fonte seja verdadeiro; a confiança de cada afirmação fica em `Observation.confidence`.
 - Nenhuma metodologia de avaliação existe ainda: a única fonte real (USGS Earthquakes) tem `reliability: "unknown"`.
 - **`reliability` ≠ saúde da fonte.** `SourceHealth` (`syncing` | `fresh` | `stale` | `unavailable`) descreve o **estado técnico atual da integração** nesta sessão (a última sincronização funcionou? o snapshot está dentro da janela esperada?). Uma fonte pode ser `fresh` com `reliability: "unknown"`, ou ter alta confiabilidade e estar `unavailable`. Regras em `AURELIS_CONTEXT.md` (Etapa 4D).
+- Cada fonte tem **seu próprio** `SourceHealth` (intervalo e janela de freshness próprios). `GlobalHealth` (`syncing` | `live` | `partial` | `stale` | `unavailable`) é só a agregação para a interface; não substitui o estado por fonte. Regras em `src/lib/source-health.ts`.
 
 ## 4. Location — `GeoLocation`
 

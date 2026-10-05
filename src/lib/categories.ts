@@ -1,12 +1,12 @@
 /**
- * Layer categories shown in the sidebar.
- * Placeholder: no data source is connected to any of them yet.
+ * Layer categories shown in the sidebar. Visual only: not wired to filters.
  */
 export const CATEGORIES = [
   { id: "world", label: "WORLD" },
   { id: "cyber", label: "CYBER" },
   { id: "air", label: "AIR" },
   { id: "sea", label: "SEA" },
+  { id: "space", label: "SPACE" },
   { id: "weather", label: "WEATHER" },
   { id: "disasters", label: "DISASTERS" },
 ] as const;

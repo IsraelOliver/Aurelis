@@ -1,22 +1,27 @@
-import type { SourceHealth } from "@/types";
+import type { GlobalHealth } from "@/types";
 
 const SYNC_INDICATOR: Record<
-  SourceHealth,
+  GlobalHealth,
   { label: string; title: string; active: boolean }
 > = {
   syncing: {
     label: "SYNCING",
-    title: "Obtaining the first snapshot",
+    title: "Obtaining the first snapshots",
     active: false,
   },
-  fresh: {
+  live: {
     label: "LIVE",
-    title: "Continuous synchronization active",
+    title: "Continuous synchronization active for all sources",
     active: true,
+  },
+  partial: {
+    label: "PARTIAL",
+    title: "Some sources are current, others are stale or unavailable",
+    active: false,
   },
   stale: {
     label: "STALE",
-    title: "Showing the last known snapshot; it may be out of date",
+    title: "Showing the last known snapshots; they may be out of date",
     active: false,
   },
   unavailable: {
@@ -26,8 +31,16 @@ const SYNC_INDICATOR: Record<
   },
 };
 
-export default function Topbar({ health }: { health: SourceHealth }) {
-  const indicator = SYNC_INDICATOR[health];
+export default function Topbar({
+  health,
+  sourceSummary,
+}: {
+  health: GlobalHealth;
+  /** Per-source states, e.g. "USGS Earthquakes: FRESH · Where The ISS At?: STALE". */
+  sourceSummary: string;
+}) {
+  const base = SYNC_INDICATOR[health];
+  const indicator = { ...base, title: `${base.title}. ${sourceSummary}` };
 
   return (
     <header className="relative z-10 flex h-12 shrink-0 items-center gap-6 border-b border-line bg-base px-4">

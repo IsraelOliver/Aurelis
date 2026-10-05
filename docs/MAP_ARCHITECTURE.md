@@ -101,6 +101,7 @@ Implementada **só no style JSON**, com `minzoom`, filtros e `line-opacity` inte
 | -------------- | ---- | ----- | ------ |
 | `aurelis-earthquakes-source` / `aurelis-earthquakes-layer` | GeoJSON + circle (ciano) | USGS Earthquakes M2.5+ / 24 h, via `/api/earthquakes` | `src/components/map/earthquake-layer.ts` |
 | `aurelis-earthquakes-selected-layer` | circle (dourado) sobre a mesma source, filtrado por `entityId` | evento selecionado | `src/components/map/earthquake-layer.ts` |
+| `aurelis-iss-source` / `aurelis-iss-halo-layer`, `aurelis-iss-layer`, `aurelis-iss-label-layer` | GeoJSON + circle (anel) + circle (núcleo) + symbol ("ISS") | posição atual da ISS, via `/api/space/iss`; ciano, dourado quando selecionada (`setPaintProperty`) | `src/components/map/iss-layer.ts` |
 
 Regras para todas as camadas de dados:
 

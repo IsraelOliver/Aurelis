@@ -13,6 +13,12 @@ const PATHS: Record<CategoryId, React.ReactNode> = {
   sea: (
     <path d="M3 9c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0M3 15c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0" />
   ),
+  space: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(-25 12 12)" />
+    </>
+  ),
   weather: <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z" />,
   disasters: (
     <>

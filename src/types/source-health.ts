@@ -10,6 +10,13 @@ import type { IsoDateTime } from "./common";
  */
 export type SourceHealth = "syncing" | "fresh" | "stale" | "unavailable";
 
+/**
+ * Aggregate over all sources, for the topbar and status bar.
+ * "partial": at least one source fresh while another is stale/unavailable.
+ * Rules in src/lib/source-health.ts (aggregateHealth).
+ */
+export type GlobalHealth = "syncing" | "live" | "partial" | "stale" | "unavailable";
+
 export interface SourceSyncState {
   sourceId: string;
   health: SourceHealth;

@@ -1,28 +1,59 @@
-import type { SourceHealth } from "@/types";
+import type { GlobalHealth, SourceHealth } from "@/types";
 
-/** Client polling interval for /api/earthquakes (the USGS feed updates every minute). */
-export const POLL_INTERVAL_MS = 60_000;
+export interface SyncConfig {
+  /** Client polling interval for the source's internal API route. */
+  pollIntervalMs: number;
+  /**
+   * A snapshot is fresh while its ingestedAt is at most this old:
+   * max age the server may serve + one poll interval (+ margin), so a
+   * healthy integration never flips to "stale" between polls.
+   */
+  freshnessWindowMs: number;
+}
 
 /**
- * A snapshot is fresh while its ingestedAt is at most this old.
- * The server may legitimately serve a snapshot up to 120 s old
- * (MAX_AGE_MS in app/api/earthquakes/route.ts), and the next poll comes
- * 60 s later: 120 + 60. A smaller window would flip a healthy integration
- * to "stale" between polls.
+ * USGS: feed updates every minute. The route may serve a snapshot up to
+ * 120 s old (MAX_AGE_MS in app/api/earthquakes/route.ts) + 60 s poll = 180 s.
  */
-export const FRESHNESS_WINDOW_MS = 180_000;
+export const USGS_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWindowMs: 180_000 };
+
+/**
+ * ISS: position changes continuously. The route serves a position at most
+ * ~4 s old (MIN_FETCH_INTERVAL_MS in app/api/space/iss/route.ts) + 5 s poll
+ * + latency ≈ 10 s; 15 s leaves margin without calling an old position current.
+ */
+export const ISS_SYNC: SyncConfig = { pollIntervalMs: 5_000, freshnessWindowMs: 15_000 };
 
 export function deriveHealth(input: {
   hasSnapshot: boolean;
   attempted: boolean;
   lastAttemptFailed: boolean;
   snapshotAgeMs: number | null;
+  freshnessWindowMs: number;
 }): SourceHealth {
   if (!input.hasSnapshot) {
     return input.attempted && input.lastAttemptFailed ? "unavailable" : "syncing";
   }
   if (input.lastAttemptFailed) return "stale";
-  return input.snapshotAgeMs !== null && input.snapshotAgeMs <= FRESHNESS_WINDOW_MS
+  return input.snapshotAgeMs !== null && input.snapshotAgeMs <= input.freshnessWindowMs
     ? "fresh"
     : "stale";
+}
+
+/**
+ * Global state from the per-source states (checked in this order):
+ * - all fresh                                   → "live"
+ * - all syncing                                 → "syncing"
+ * - nothing stale/unavailable (some still syncing) → "syncing"
+ * - at least one fresh and one stale/unavailable → "partial"
+ * - none fresh, at least one stale              → "stale"
+ * - otherwise (only syncing/unavailable)         → "unavailable"
+ */
+export function aggregateHealth(healths: SourceHealth[]): GlobalHealth {
+  if (healths.every((h) => h === "fresh")) return "live";
+  if (healths.every((h) => h === "syncing")) return "syncing";
+  if (!healths.some((h) => h === "stale" || h === "unavailable")) return "syncing";
+  if (healths.some((h) => h === "fresh")) return "partial";
+  if (healths.some((h) => h === "stale")) return "stale";
+  return "unavailable";
 }

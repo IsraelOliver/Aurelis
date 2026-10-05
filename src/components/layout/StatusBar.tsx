@@ -1,8 +1,9 @@
-import type { SourceHealth } from "@/types";
+import type { GlobalHealth } from "@/types";
 
-const STATUS_BY_HEALTH: Record<SourceHealth, string> = {
+const STATUS_BY_HEALTH: Record<GlobalHealth, string> = {
   syncing: "SYNCING",
-  fresh: "NOMINAL",
+  live: "NOMINAL",
+  partial: "DEGRADED",
   stale: "DEGRADED",
   unavailable: "DEGRADED",
 };
@@ -16,7 +17,10 @@ function Item({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Counts reflect the snapshot actually held; zero until one exists. */
+/**
+ * SOURCES: sources with a usable snapshot. ENTITIES: sum of current entities
+ * across those snapshots (not observations). Zero until a snapshot exists.
+ */
 export default function StatusBar({
   sourceCount,
   entityCount,
@@ -24,7 +28,7 @@ export default function StatusBar({
 }: {
   sourceCount: number;
   entityCount: number;
-  health: SourceHealth;
+  health: GlobalHealth;
 }) {
   return (
     <footer className="flex h-7 shrink-0 items-center border-t border-line bg-base px-4 text-[10px] font-medium tracking-[0.2em]">

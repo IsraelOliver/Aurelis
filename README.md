@@ -12,9 +12,10 @@ Its central principle is simple:
 - Custom AURELIS basemap style
 - Explicit data provenance model
 - USGS M2.5+ earthquakes from the past 24 hours
-- Continuous synchronization
+- International Space Station (NORAD 25544) position, updated every few seconds
+- Continuous synchronization, per source
 - Source health: Fresh / Stale / Unavailable
-- Intelligence panel for earthquake observations
+- Intelligence panels for earthquakes and the ISS
 
 ## Data philosophy
 
@@ -43,9 +44,10 @@ Relationships between entities are never drawn merely for visual effect.
 - Tailwind CSS
 - MapLibre GL
 
-## Current data source
+## Current data sources
 
-USGS Earthquakes
+- [USGS Earthquakes](https://earthquake.usgs.gov/earthquakes/feed/)
+- [Where The ISS At?](https://wheretheiss.at/) (ISS position)
 
 Basemap: [OpenFreeMap](https://openfreemap.org) vector tiles, © [OpenMapTiles](https://www.openmaptiles.org/), data from [OpenStreetMap](https://www.openstreetmap.org/copyright).
 
