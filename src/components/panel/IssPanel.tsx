@@ -94,14 +94,15 @@ export default function IssPanel({
             <>
               <span className="font-mono">{trail.points} positions</span>
               <Note>
-                Recent ground track since {formatUtc(new Date(trail.since).toISOString())?.time}
-                , drawn on the surface. Received positions only; not an orbit prediction.
+                Recent tracked path since {formatUtc(new Date(trail.since).toISOString())?.time}
+                . At reported altitude on globe; on the surface on flat map. Received positions
+                only; not an orbit prediction.
               </Note>
             </>
           ) : (
             <>
               {EMPTY}
-              <Note>Recent ground track appears as positions are received.</Note>
+              <Note>Recent tracked path appears as positions are received.</Note>
             </>
           )}
         </Row>

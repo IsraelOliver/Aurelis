@@ -1,14 +1,18 @@
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
 import type { FeatureCollection, Point } from "geojson";
 import type { ProjectionMode } from "@/lib/map-config";
+import type { OrbitVertex } from "@/lib/iss-trail";
+import { createIssOrbitTrailLayer, type IssOrbitTrailLayer } from "./iss-orbit-trail-layer";
 
 /**
  * Map representation of the ISS: its own GeoJSON source, separate from the
  * earthquakes. One symbol layer draws the marker (outer ring + small solid
  * core) and its "ISS" label together, so on the globe both can be lifted to
  * the reported orbital altitude with `symbol-height-offset` (circle layers
- * cannot). A separate trail source draws the recent ground track (received
- * positions only, not an orbit) on the surface, shown only while selected.
+ * cannot). The recent trail (received positions only, not an orbit) is shown
+ * only while selected: on the flat map as a 2D line on the surface; on the
+ * globe as a 3D line at orbital altitude ending at the marker
+ * (iss-orbit-trail-layer.ts).
  */
 export const ISS_SOURCE_ID = "aurelis-iss-source";
 export const ISS_LAYER_ID = "aurelis-iss-layer";
@@ -17,6 +21,21 @@ export const ISS_TRAIL_LAYER_ID = "aurelis-iss-trail-layer";
 
 /** Layers that respond to hover/click (the trail does not). */
 export const ISS_INTERACTIVE_LAYERS = [ISS_LAYER_ID];
+
+/** Fraction of the trail (oldest end) that fades from transparent to full opacity. */
+const TRAIL_FADE = 0.35;
+
+/** Per map: selection and projection decide which trail is drawn. */
+type TrailState = { selected: boolean; projection: ProjectionMode; orbit: IssOrbitTrailLayer };
+const trailState = new WeakMap<MapLibreMap, TrailState>();
+
+function applyTrailVisibility(map: MapLibreMap): void {
+  const state = trailState.get(map);
+  if (!state) return;
+  const flat = state.selected && state.projection === "mercator";
+  map.setLayoutProperty(ISS_TRAIL_LAYER_ID, "visibility", flat ? "visible" : "none");
+  if (!(state.selected && state.projection === "globe")) state.orbit.setStrips(null);
+}
 
 const ICON_NORMAL = "aurelis-iss-icon";
 const ICON_SELECTED = "aurelis-iss-icon-selected";
@@ -66,15 +85,20 @@ export function addIssLayer(map: MapLibreMap): void {
     source: ISS_TRAIL_SOURCE_ID,
     layout: {
       visibility: "none",
-      "line-cap": "round",
-      "line-join": "round",
+      // Butt caps: the trail is drawn as consecutive pieces, round caps would overlap at each joint.
+      "line-cap": "butt",
     },
     paint: {
       "line-color": token("--aurelis-cyan"),
-      "line-opacity": 0.55,
+      // Oldest end fades out instead of ending abruptly.
+      "line-opacity": ["interpolate", ["linear"], ["get", "progress"], 0, 0, TRAIL_FADE, 0.55],
       "line-width": 1.5,
     },
   });
+
+  const orbit = createIssOrbitTrailLayer(token("--aurelis-cyan"));
+  map.addLayer(orbit);
+  trailState.set(map, { selected: false, projection: "globe", orbit });
 
   map.addImage(ICON_NORMAL, markerImage(token("--aurelis-cyan")), { pixelRatio: 2 });
   map.addImage(ICON_SELECTED, markerImage(token("--aurelis-gold")), { pixelRatio: 2 });
@@ -136,29 +160,53 @@ export function setIssMarker(
   map.getSource<GeoJSONSource>(ISS_SOURCE_ID)?.setData(data);
 }
 
-/** GLOBE: marker and label at the reported orbital altitude (real scale). FLAT: on the map. */
+/**
+ * GLOBE: marker, label and trail at the reported orbital altitude (real
+ * scale). FLAT: marker on the map and the 2D surface trail.
+ */
 export function setIssProjection(map: MapLibreMap, projection: ProjectionMode): void {
   map.setLayoutProperty(
     ISS_LAYER_ID,
     "symbol-height-offset",
     projection === "globe" ? ["get", "altitudeMeters"] : 0,
   );
+  const state = trailState.get(map);
+  if (state) state.projection = projection;
+  applyTrailVisibility(map);
 }
 
-/** Updates the trail geometry (segments already split at gaps and the antimeridian). */
+/**
+ * Orbital trail geometry for the current frame (see orbitTrailStrips). Drawn
+ * only while the ISS is selected and the projection is globe.
+ */
+export function setIssOrbitTrail(map: MapLibreMap, strips: OrbitVertex[][]): void {
+  const state = trailState.get(map);
+  if (state?.selected && state.projection === "globe") state.orbit.setStrips(strips);
+}
+
+/** True when the orbital trail is drawn (the animation loop only builds it then). */
+export function isIssOrbitTrailActive(map: MapLibreMap): boolean {
+  const state = trailState.get(map);
+  return Boolean(state?.selected && state.projection === "globe");
+}
+
+/**
+ * Updates the trail geometry (segments already split at gaps and the
+ * antimeridian). Each piece between two consecutive vertices is its own
+ * feature with its position along the trail (0 = oldest, 1 = newest), so the
+ * oldest end can fade out (line opacity is data-driven per feature).
+ */
 export function setIssTrail(map: MapLibreMap, segments: [number, number][][]): void {
+  const pieces = segments.flatMap((segment) =>
+    segment.slice(1).map((end, i) => [segment[i], end] as [number, number][]),
+  );
   map.getSource<GeoJSONSource>(ISS_TRAIL_SOURCE_ID)?.setData({
     type: "FeatureCollection",
-    features:
-      segments.length > 0
-        ? [
-            {
-              type: "Feature",
-              geometry: { type: "MultiLineString", coordinates: segments },
-              properties: {},
-            },
-          ]
-        : [],
+    features: pieces.map((coordinates, i) => ({
+      type: "Feature",
+      geometry: { type: "LineString", coordinates },
+      properties: { progress: pieces.length > 1 ? i / (pieces.length - 1) : 1 },
+    })),
   });
 }
 
@@ -166,5 +214,7 @@ export function setIssTrail(map: MapLibreMap, segments: [number, number][][]): v
 export function setIssSelected(map: MapLibreMap, selected: boolean): void {
   map.setLayoutProperty(ISS_LAYER_ID, "icon-image", selected ? ICON_SELECTED : ICON_NORMAL);
   map.setPaintProperty(ISS_LAYER_ID, "text-color", token(selected ? "--aurelis-gold" : "--aurelis-cyan"));
-  map.setLayoutProperty(ISS_TRAIL_LAYER_ID, "visibility", selected ? "visible" : "none");
+  const state = trailState.get(map);
+  if (state) state.selected = selected;
+  applyTrailVisibility(map);
 }

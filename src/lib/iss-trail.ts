@@ -69,3 +69,39 @@ export function trailToSegments(trail: TrailPoint[]): [number, number][][] {
   flush();
   return segments;
 }
+
+/** A vertex of the orbital (3D) trail: position and the altitude reported with it. */
+export type OrbitVertex = { lon: number; lat: number; altitudeKm: number };
+
+/**
+ * Line strips for the orbital trail on the globe, ending exactly at the
+ * displayed ISS marker:
+ * - only received positions observed up to `displayTime` (the marker is drawn
+ *   ~5 s behind; positions it has not reached yet are left out);
+ * - split at time gaps larger than TRAIL_MAX_GAP_MS (untracked stretches);
+ * - not split at the antimeridian: on the sphere consecutive positions are
+ *   close, so the line crosses ±180° naturally;
+ * - `display` (the marker's interpolated position/altitude) is appended as a
+ *   visual-only endpoint; it is never stored in the trail.
+ */
+export function orbitTrailStrips(
+  trail: TrailPoint[],
+  displayTime: number,
+  display: OrbitVertex | null,
+): OrbitVertex[][] {
+  const strips: OrbitVertex[][] = [];
+  let current: OrbitVertex[] = [];
+  let lastT: number | null = null;
+  for (const p of trail) {
+    if (p.t > displayTime) break;
+    if (lastT !== null && p.t - lastT > TRAIL_MAX_GAP_MS) {
+      if (current.length > 1) strips.push(current);
+      current = [];
+    }
+    current.push({ lon: p.lon, lat: p.lat, altitudeKm: p.altitudeKm });
+    lastT = p.t;
+  }
+  if (display && current.length > 0) current.push(display);
+  if (current.length > 1) strips.push(current);
+  return strips;
+}

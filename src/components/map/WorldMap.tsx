@@ -18,7 +18,7 @@ import { fetchEsriImagerySource } from "@/lib/esri-imagery";
 import { IMAGERY_SOURCE_ID, addImageryLayer, applyBasemapMode } from "./basemap-layer";
 import { ISS_ENTITY_ID } from "@/lib/sources/wtia/source";
 import { VISUAL_DELAY_MS, interpolatePosition } from "@/lib/iss-interpolation";
-import type { TrailPoint } from "@/lib/iss-trail";
+import { orbitTrailStrips, type TrailPoint } from "@/lib/iss-trail";
 import type { EarthquakeFeed, IssFeed } from "@/types";
 import {
   EARTHQUAKES_LAYER_ID,
@@ -29,7 +29,9 @@ import {
 import {
   ISS_INTERACTIVE_LAYERS,
   addIssLayer,
+  isIssOrbitTrailActive,
   setIssMarker,
+  setIssOrbitTrail,
   setIssProjection,
   setIssSelected,
   setIssTrail,
@@ -233,14 +235,16 @@ export default function WorldMap({
     let frame = 0;
     let lastKey = "";
 
+    let lastOrbitKey = "";
+
     const tick = () => {
       const entity = issEntityRef.current;
+      const offset = clockOffsetRef.current;
+      const displayTime = offset !== null ? Date.now() - offset - VISUAL_DELAY_MS : Infinity;
       let position: { lon: number; lat: number; altitudeKm: number | null } | null = null;
       if (entity) {
-        const offset = clockOffsetRef.current;
         position =
-          (offset !== null &&
-            interpolatePosition(issPositionsRef.current, Date.now() - offset - VISUAL_DELAY_MS)) ||
+          (offset !== null && interpolatePosition(issPositionsRef.current, displayTime)) ||
           { lon: entity.lon, lat: entity.lat, altitudeKm: entity.altitudeKm };
       }
       const key = position
@@ -250,6 +254,16 @@ export default function WorldMap({
         lastKey = key;
         setIssMarker(map, entity?.id ?? null, position);
       }
+      // Globe + selected: the orbital trail ends at the marker, so it follows the same displayTime.
+      const orbitKey = isIssOrbitTrailActive(map) ? `${key}|${issPositionsRef.current.length}` : "";
+      if (orbitKey && orbitKey !== lastOrbitKey) {
+        const display =
+          position && position.altitudeKm !== null
+            ? { lon: position.lon, lat: position.lat, altitudeKm: position.altitudeKm }
+            : null;
+        setIssOrbitTrail(map, orbitTrailStrips(issPositionsRef.current, displayTime, display));
+      }
+      lastOrbitKey = orbitKey;
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);

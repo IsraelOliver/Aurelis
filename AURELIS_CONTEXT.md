@@ -459,12 +459,24 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **Representação**: as antigas circle layers (anel, núcleo) e a symbol de rótulo viraram **uma única symbol layer** `aurelis-iss-layer` (ícone anel + núcleo desenhado em canvas, com o texto "ISS"), porque circle layers não suportam altura. Aparência preservada: ciano normal, dourado selecionada (troca de `icon-image` e `text-color`). Marcador e rótulo sobem juntos.
 - **Mesmo instante visual**: os pontos recebidos guardam também `altitudeKm`; `interpolatePosition` interpola latitude, longitude **e altitude** no mesmo `displayTime` (~5 s de atraso). Sem extrapolação: sem próxima Observation, posição e altitude param na última recebida. Nenhuma Observation intermediária é criada.
 - **FLAT (mercator)**: `symbol-height-offset` = 0; a ISS continua sobre o mapa. A altitude segue disponível no painel.
-- **Trilha**: **não** é elevada. Continua o **ground track** recente sobre a superfície (só posições recebidas, 10 min / 120 pontos, antimeridiano tratado). No painel, TRACKED PATH passou a dizer "Recent ground track … drawn on the surface".
+- **Trilha**: na 5G continuava na superfície; desde a 5H também fica em altitude orbital no globo (ver seção abaixo).
 - **Seleção**: `queryRenderedFeatures` atinge o símbolo elevado normalmente (sem hit-testing customizado); clicar nele seleciona `space:norad:25544`.
 - **Oclusão**: com a ISS atrás da Terra, o símbolo não é desenhado (verificado: 0 feições renderizadas com a câmera do lado oposto).
 - **Painel**: ALTITUDE continua sendo o valor da Observation mais recente, com a nota "Rendered at reported orbital altitude on globe."
 - Funciona em GLOBE + MAP e GLOBE + SATELLITE; a integração Esri não mudou.
 - Não implementado: modelo 3D, órbita prevista, TLE, satellite.js, linha vertical, footprint, sombra, iluminação, outros satélites, auto-follow.
+
+### Trilha orbital 3D da ISS no globo (Etapa 5H)
+
+- **GLOBE**: a trilha não é mais ground track. É desenhada **em altitude orbital real**, flutuando acima da esfera e saindo do próprio marcador, por uma **custom layer** do MapLibre (`aurelis-iss-orbit-trail-layer`, `type: "custom"`, `renderingMode: "3d"`, `src/components/map/iss-orbit-trail-layer.ts`). WebGL direto com o código de projeção do próprio MapLibre (`shaderData.vertexShaderPrelude` + `projectTileFor3D(mercator, elevação em metros)`); sem Three.js nem dependência nova.
+- **Altitude por ponto**: cada posição recebida guarda o `altitudeKm` da sua Observation; cada vértice usa `altitudeKm × 1000` m (sem altitude fixa).
+- **Endpoint**: a trilha usa o mesmo `displayTime` (~5 s de atraso) do marcador: entram só posições recebidas até esse instante, e o último vértice é a posição/altitude interpolada do marcador (`orbitTrailStrips` em `src/lib/iss-trail.ts`). Esse ponto é só visual: não é Observation nem entra no histórico. Sem extrapolação e sem trajetória futura.
+- **Oclusão**: depth test 3D contra o planeta; a parte atrás da Terra não aparece (verificado com a câmera do lado oposto).
+- **Antimeridiano**: no globo a trilha não é dividida em ±180° (pontos consecutivos ficam próximos na esfera); continua dividida em lacunas > 30 s.
+- **Visual**: ciano, linha fina (1 px), opacidade máx. 0.55, ponta mais antiga com fade (mesmo critério da 2D). Dourado só no marcador.
+- **FLAT**: continua a trilha 2D sobre o mapa (`aurelis-iss-trail-layer`); a camada 3D não desenha em mercator. Visibilidade: 2D = selecionada && mercator; 3D = selecionada && globe.
+- Painel: TRACKED PATH explica "At reported altitude on globe; on the surface on flat map."
+- Não implementado: órbita prevista, TLE, satellite.js, linha até o chão, footprint, modelo 3D, outros satélites.
 
 ### Dívida técnica
 
@@ -548,3 +560,5 @@ npm start
 2026-10-05 17:16 | lib/esri-imagery.ts, lib/map-config.ts, map/basemap-layer.ts, map/SegmentedControl.tsx, map/MapView.tsx, map/WorldMap.tsx | Etapa 5F: basemapMode dark|satellite independente da projeção; SATELLITE = Esri World Imagery (raster do Basemap Styles v2 arcgis/imagery, autenticado por API key via env, carregado só ao selecionar) + overlays AURELIS (fronteiras, rótulos) restilizados e restaurados exatamente em DARK; atribuição 'Powered by Esri' + fonte de dados do serviço; fallback para DARK em falha; Esri fora de SOURCES/SourceHealth. ProjectionToggle substituído por SegmentedControl.
 2026-10-05 17:40 | globals.css, map/MapView.tsx | Revisão final 5F: atribuição em 12 px no SATELLITE (10 px mantidos no MAP); auditoria de tokens sem ocorrências persistidas; chave só em .env.local (ignorado).
 2026-10-05 21:20 | map/iss-layer.ts, lib/iss-interpolation.ts, lib/iss-trail.ts, map/WorldMap.tsx, Workspace.tsx, panel/IssPanel.tsx | Etapa 5G: no GLOBE a ISS (marcador + rótulo, agora uma symbol layer) fica na altitude orbital reportada via symbol-height-offset nativo (altitudeKm×1000, escala real); altitude interpolada no mesmo displayTime (~5 s); FLAT sem elevação; trilha continua ground track na superfície; sem previsão orbital.
+2026-10-05 21:30 | map/iss-layer.ts | Trilha da ISS: a ponta mais antiga (35% do trajeto) desaparece gradualmente em vez de terminar seca; cada trecho entre pontos recebidos vira uma feature com progress (0 = mais antigo) e line-opacity data-driven. Geometria e regras da trilha inalteradas.
+2026-10-05 22:50 | map/iss-orbit-trail-layer.ts, map/iss-layer.ts, lib/iss-trail.ts, map/WorldMap.tsx, panel/IssPanel.tsx | Etapa 5H: no GLOBE a trilha da ISS é uma custom layer 3D (WebGL + projectTileFor3D do MapLibre) em altitude orbital real por ponto, terminando no marcador (mesmo displayTime ~5 s, endpoint visual não persistido), com oclusão por profundidade; FLAT mantém a trilha 2D; sem previsão orbital.
