@@ -59,3 +59,22 @@ export const NOAA_SWPC_RTSW_MAG_SOURCE: IntelligenceSource = {
 /** 2026 replacement RTSW products (SCN 26-21); public, no authentication. */
 export const NOAA_SWPC_RTSW_WIND_URL = "https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json";
 export const NOAA_SWPC_RTSW_MAG_URL = "https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json";
+
+/**
+ * NOAA SWPC GOES X-ray (primary): flux series and the latest-event file are
+ * one operational product, one source and one health.
+ */
+export const NOAA_SWPC_GOES_XRAY_SOURCE: IntelligenceSource = {
+  id: "noaa-swpc-goes-xray",
+  name: "NOAA SWPC — GOES X-ray Flux",
+  provider: "NOAA Space Weather Prediction Center",
+  category: "government",
+  url: "https://www.swpc.noaa.gov/products/goes-x-ray-flux",
+  // No formal reliability methodology exists yet.
+  reliability: "unknown",
+  description: "GOES XRS full-Sun X-ray flux (1-minute, primary satellite) and the latest X-ray event.",
+};
+
+/** Primary operational feed (public, no authentication). */
+export const NOAA_SWPC_GOES_XRAY_FLUX_URL = "https://services.swpc.noaa.gov/json/goes/primary/xrays-6-hour.json";
+export const NOAA_SWPC_GOES_XRAY_FLARE_URL = "https://services.swpc.noaa.gov/json/goes/primary/xray-flares-latest.json";

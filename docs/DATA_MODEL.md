@@ -15,6 +15,7 @@ São apenas tipos (sem banco). A validação runtime de dados externos fica nos 
 | `space.ts`        | `IssObservationData`, `IssFeed` (dados específicos da ISS) |
 | `space-weather.ts`| `PlanetaryKpObservationData`, `PlanetaryKpFeed` (Kp planetário NOAA SWPC, sem Entity) |
 | `aurora.ts`       | `AuroraForecastData`, `AuroraGridCell`, `AuroraForecastFeed` (forecast OVATION, sem Entity) |
+| `xray.ts`         | `GoesXrayFluxData`, `GoesXrayFlareData`, `GoesXrayFeed` (fluxo GOES observed + último evento reported, sem Entity) |
 | `solar-wind.ts`   | `SolarWindPlasmaData`, `InterplanetaryMagneticFieldData`, `RtswFeed` (RTSW in situ, observed, sem Entity) |
 | `source-health.ts`| `SourceHealth`, `SourceSyncState`, `GlobalHealth` (estado técnico da integração) |
 

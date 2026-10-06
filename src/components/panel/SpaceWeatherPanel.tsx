@@ -1,5 +1,6 @@
 import type {
   AuroraForecastFeed,
+  GoesXrayFeed,
   InterplanetaryMagneticFieldFeed,
   PlanetaryKpFeed,
   SolarWindPlasmaFeed,
@@ -8,6 +9,7 @@ import type {
 import { EMPTY, Note, PanelShell, Row, Section, SourceLink, Time } from "./primitives";
 import KpTrendChart from "./KpTrendChart";
 import { ImfSection, SolarWindSection } from "./SolarWindSections";
+import XraySection from "./XraySection";
 
 const count = new Intl.NumberFormat("en-US");
 
@@ -33,7 +35,8 @@ function Tag({ children }: { children: React.ReactNode }) {
 /**
  * SPACE domain panel: global/modeled data, no Entity. Separate products with
  * separate provenance and health: planetary Kp (ESTIMATED), the OVATION
- * aurora forecast (FORECAST), and real-time solar wind plasma and IMF (OBSERVED). Reads only loaded snapshots; never fetches.
+ * aurora forecast (FORECAST), real-time solar wind plasma and IMF (OBSERVED),
+ * and GOES X-ray flux (OBSERVED) with the latest official X-ray event (REPORTED). Reads only loaded snapshots; never fetches.
  */
 export default function SpaceWeatherPanel({
   kp,
@@ -46,6 +49,8 @@ export default function SpaceWeatherPanel({
   plasmaHealth,
   mag,
   magHealth,
+  xray,
+  xrayHealth,
   onClose,
 }: {
   kp: PlanetaryKpFeed | null;
@@ -58,6 +63,8 @@ export default function SpaceWeatherPanel({
   plasmaHealth: SourceHealth;
   mag: InterplanetaryMagneticFieldFeed | null;
   magHealth: SourceHealth;
+  xray: GoesXrayFeed | null;
+  xrayHealth: SourceHealth;
   onClose: () => void;
 }) {
   const latest = kp?.observations.find((o) => o.id === kp.latestObservationId) ?? null;
@@ -170,6 +177,9 @@ export default function SpaceWeatherPanel({
       {(plasma ?? mag)?.source.url && (
         <SourceLink href={(plasma ?? mag)!.source.url!} srText="NOAA SWPC Real Time Solar Wind" />
       )}
+
+      <XraySection feed={xray} health={xrayHealth} />
+      {xray?.source.url && <SourceLink href={xray.source.url} srText="NOAA SWPC GOES X-ray Flux" />}
     </PanelShell>
   );
 }

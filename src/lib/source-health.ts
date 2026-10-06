@@ -52,6 +52,13 @@ export const NOAA_OVATION_SYNC: SyncConfig = {
  */
 export const NOAA_RTSW_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWindowMs: 5 * 60_000 };
 
+/**
+ * NOAA SWPC GOES X-ray: 1-minute samples. The route serves a snapshot at most
+ * ~45 s old (app/api/space/weather/xray/route.ts) + 60 s poll ≈ 105 s; 5 min
+ * tolerates transient delays. AURELIS operational policy, not an NOAA SLA.
+ */
+export const NOAA_XRAY_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWindowMs: 5 * 60_000 };
+
 export function deriveHealth(input: {
   hasSnapshot: boolean;
   attempted: boolean;

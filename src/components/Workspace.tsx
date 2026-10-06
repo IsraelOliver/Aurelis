@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AuroraForecastFeed,
   EarthquakeFeed,
+  GoesXrayFeed,
   InterplanetaryMagneticFieldFeed,
   IssFeed,
   PlanetaryKpFeed,
@@ -15,6 +16,7 @@ import {
   NOAA_KP_SYNC,
   NOAA_OVATION_SYNC,
   NOAA_RTSW_SYNC,
+  NOAA_XRAY_SYNC,
   USGS_SYNC,
   aggregateHealth,
   deriveHealth,
@@ -27,6 +29,7 @@ import {
   NOAA_SWPC_OVATION_SOURCE,
   NOAA_SWPC_RTSW_MAG_SOURCE,
   NOAA_SWPC_RTSW_WIND_SOURCE,
+  NOAA_SWPC_GOES_XRAY_SOURCE,
 } from "@/lib/sources/noaa/source";
 import { appendTrailPoint, trailToSegments, type TrailPoint } from "@/lib/iss-trail";
 import Topbar from "@/components/layout/Topbar";
@@ -177,6 +180,13 @@ export default function Workspace() {
     "NOAA SWPC RTSW mag",
     noop,
   );
+  // GOES X-ray flux + latest official event: one product, one health; no entity, nothing on the map.
+  const xray = useSourceSync<GoesXrayFeed>(
+    "/api/space/weather/xray",
+    NOAA_XRAY_SYNC.pollIntervalMs,
+    "NOAA SWPC GOES X-ray",
+    noop,
+  );
   // Aurora layer on the map: session state, off by default, not persisted.
   const [auroraVisible, setAuroraVisible] = useState(false);
   const now = useNow(1000);
@@ -187,6 +197,7 @@ export default function Workspace() {
   const auroraState = toSyncState(NOAA_SWPC_OVATION_SOURCE.id, aurora, NOAA_OVATION_SYNC, now);
   const plasmaState = toSyncState(NOAA_SWPC_RTSW_WIND_SOURCE.id, plasma, NOAA_RTSW_SYNC, now);
   const magState = toSyncState(NOAA_SWPC_RTSW_MAG_SOURCE.id, mag, NOAA_RTSW_SYNC, now);
+  const xrayState = toSyncState(NOAA_SWPC_GOES_XRAY_SOURCE.id, xray, NOAA_XRAY_SYNC, now);
 
   const sources = [
     { id: USGS_EARTHQUAKES_SOURCE.id, name: USGS_EARTHQUAKES_SOURCE.name, state: usgsState, snapshot: usgs.snapshot },
@@ -195,6 +206,7 @@ export default function Workspace() {
     { id: NOAA_SWPC_OVATION_SOURCE.id, name: NOAA_SWPC_OVATION_SOURCE.name, state: auroraState, snapshot: aurora.snapshot },
     { id: NOAA_SWPC_RTSW_WIND_SOURCE.id, name: NOAA_SWPC_RTSW_WIND_SOURCE.name, state: plasmaState, snapshot: plasma.snapshot },
     { id: NOAA_SWPC_RTSW_MAG_SOURCE.id, name: NOAA_SWPC_RTSW_MAG_SOURCE.name, state: magState, snapshot: mag.snapshot },
+    { id: NOAA_SWPC_GOES_XRAY_SOURCE.id, name: NOAA_SWPC_GOES_XRAY_SOURCE.name, state: xrayState, snapshot: xray.snapshot },
   ];
   // Same aggregation for every source; no special rules.
   const globalHealth = aggregateHealth(sources.map((s) => s.state.health));
@@ -228,6 +240,8 @@ export default function Workspace() {
         plasmaHealth={plasmaState.health}
         mag={mag.snapshot}
         magHealth={magState.health}
+        xray={xray.snapshot}
+        xrayHealth={xrayState.health}
         onClose={close}
       />
     );
@@ -294,7 +308,7 @@ export default function Workspace() {
       </div>
       <StatusBar
         sourceCount={sources.filter((s) => s.snapshot !== null).length}
-        // Kp, aurora and solar wind create no Entity: only earthquakes and the ISS count.
+        // Kp, aurora, solar wind and X-ray create no Entity: only earthquakes and the ISS count.
         entityCount={
           (usgs.snapshot?.entities.length ?? 0) + (iss.snapshot?.entities.length ?? 0)
         }

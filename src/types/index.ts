@@ -10,3 +10,4 @@ export type * from "./space";
 export type * from "./space-weather";
 export type * from "./aurora";
 export type * from "./solar-wind";
+export type * from "./xray";
