@@ -19,12 +19,21 @@ import { IMAGERY_SOURCE_ID, addImageryLayer, applyBasemapMode } from "./basemap-
 import { ISS_ENTITY_ID } from "@/lib/sources/wtia/source";
 import { VISUAL_DELAY_MS, interpolatePosition } from "@/lib/iss-interpolation";
 import { orbitTrailStrips, type TrailPoint } from "@/lib/iss-trail";
-import type { AuroraForecastFeed, EarthquakeFeed, IssFeed } from "@/types";
+import type { AuroraForecastFeed, EarthquakeFeed, EonetFeed, IssFeed } from "@/types";
+import type { MapLayerVisibility } from "@/lib/map-layers";
+import {
+  EONET_INTERACTIVE_LAYERS,
+  addEonetLayer,
+  setEonetData,
+  setEonetVisible,
+  setSelectedEonet,
+} from "./eonet-layer";
 import { addAuroraLayer, setAuroraCells, setAuroraVisible } from "./aurora-layer";
 import {
   EARTHQUAKES_LAYER_ID,
   addEarthquakeLayer,
   setEarthquakeData,
+  setEarthquakesVisible,
   setSelectedEarthquake,
 } from "./earthquake-layer";
 import {
@@ -40,8 +49,8 @@ import {
 
 setWorkerUrl(MAPLIBRE_WORKER_URL);
 
-/** Clickable data layers, top-most first (the ISS is drawn above earthquakes). */
-const INTERACTIVE_LAYERS = [...ISS_INTERACTIVE_LAYERS, EARTHQUAKES_LAYER_ID];
+/** Clickable data layers, top-most first: ISS, earthquakes, then EONET events. */
+const INTERACTIVE_LAYERS = [...ISS_INTERACTIVE_LAYERS, EARTHQUAKES_LAYER_ID, ...EONET_INTERACTIVE_LAYERS];
 
 /**
  * World map. Browser-only: imported through MapView with ssr: false,
@@ -52,8 +61,9 @@ const INTERACTIVE_LAYERS = [...ISS_INTERACTIVE_LAYERS, EARTHQUAKES_LAYER_ID];
  */
 export default function WorldMap({
   earthquakes,
+  eonet,
   aurora,
-  auroraVisible,
+  layerVisibility,
   iss,
   issTrail,
   issPositions,
@@ -64,10 +74,12 @@ export default function WorldMap({
   onSelectEntity,
 }: {
   earthquakes: EarthquakeFeed | null;
+  /** NASA EONET open natural events (latest geometry drawn). */
+  eonet: EonetFeed | null;
   /** Latest OVATION forecast snapshot (kept while hidden). */
   aurora: AuroraForecastFeed | null;
-  /** Optional aurora layer, off by default. */
-  auroraVisible: boolean;
+  /** Which data layers are drawn (rendering/interaction only; data keeps syncing). */
+  layerVisibility: MapLayerVisibility;
   iss: IssFeed | null;
   /** Recent tracked path segments (already split at gaps and the antimeridian). */
   issTrail: [number, number][][];
@@ -138,6 +150,7 @@ export default function WorldMap({
       addEarthquakeLayer(map);
       addIssLayer(map);
       addAuroraLayer(map);
+      addEonetLayer(map);
 
       // One handler for all data layers: the top-most feature wins.
       map.on("click", (event) => {
@@ -198,6 +211,20 @@ export default function WorldMap({
       setEarthquakeData(mapRef.current, earthquakes);
     }
   }, [styleReady, earthquakes]);
+
+  useEffect(() => {
+    if (styleReady && mapRef.current && eonet) {
+      setEonetData(mapRef.current, eonet.observations);
+    }
+  }, [styleReady, eonet]);
+
+  const { earthquakes: earthquakesVisible, eonet: eonetVisible, aurora: auroraVisible } = layerVisibility;
+  useEffect(() => {
+    if (styleReady && mapRef.current) {
+      setEarthquakesVisible(mapRef.current, earthquakesVisible);
+      setEonetVisible(mapRef.current, eonetVisible);
+    }
+  }, [styleReady, earthquakesVisible, eonetVisible]);
 
   // Aurora grid: uploaded only while visible and only when the forecast changes (the
   // layer ignores an already-loaded forecast id). Hiding only stops drawing; the
@@ -300,6 +327,7 @@ export default function WorldMap({
   useEffect(() => {
     if (styleReady && mapRef.current) {
       setSelectedEarthquake(mapRef.current, selectedEntityId);
+      setSelectedEonet(mapRef.current, selectedEntityId);
       setIssSelected(mapRef.current, selectedEntityId === ISS_ENTITY_ID);
     }
   }, [styleReady, selectedEntityId]);

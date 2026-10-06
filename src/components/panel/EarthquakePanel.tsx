@@ -21,12 +21,15 @@ export default function EarthquakePanel({
   observation,
   source,
   sourceHealth,
+  onHideEarthquakes,
   onClose,
 }: {
   entity: AurelisEntity;
   observation: EarthquakeObservation;
   source: IntelligenceSource;
   sourceHealth: SourceHealth;
+  /** Hides the earthquake layer (returns to the DISASTERS panel). */
+  onHideEarthquakes: () => void;
   onClose: () => void;
 }) {
   const { data, location } = observation;
@@ -47,6 +50,13 @@ export default function EarthquakePanel({
         <span className="text-[10px] font-medium tracking-[0.18em] text-fg-subtle">
           MAGNITUDE{data.magnitudeType ? ` · ${data.magnitudeType}` : ""}
         </span>
+        <button
+          type="button"
+          onClick={onHideEarthquakes}
+          className="ml-auto h-7 self-center rounded border border-gold/60 px-3 text-[10px] font-medium tracking-[0.2em] text-gold transition-colors hover:border-gold"
+        >
+          HIDE EARTHQUAKES
+        </button>
       </div>
 
       <Section title="EVENT">

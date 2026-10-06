@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AuroraForecastFeed,
   EarthquakeFeed,
+  EonetFeed,
   GoesXrayFeed,
   InterplanetaryMagneticFieldFeed,
   IssFeed,
@@ -13,6 +14,7 @@ import type {
 } from "@/types";
 import {
   ISS_SYNC,
+  NASA_EONET_SYNC,
   NOAA_KP_SYNC,
   NOAA_OVATION_SYNC,
   NOAA_RTSW_SYNC,
@@ -24,6 +26,7 @@ import {
 } from "@/lib/source-health";
 import { USGS_EARTHQUAKES_SOURCE } from "@/lib/sources/usgs/source";
 import { ISS_ENTITY_ID, WTIA_ISS_SOURCE } from "@/lib/sources/wtia/source";
+import { EONET_ENTITY_PREFIX, NASA_EONET_SOURCE } from "@/lib/sources/nasa/eonet-source";
 import {
   NOAA_SWPC_KP_SOURCE,
   NOAA_SWPC_OVATION_SOURCE,
@@ -32,11 +35,14 @@ import {
   NOAA_SWPC_GOES_XRAY_SOURCE,
 } from "@/lib/sources/noaa/source";
 import { appendTrailPoint, trailToSegments, type TrailPoint } from "@/lib/iss-trail";
+import { DEFAULT_LAYER_VISIBILITY, type MapLayerId, type MapLayerVisibility } from "@/lib/map-layers";
 import Topbar from "@/components/layout/Topbar";
 import Sidebar from "@/components/layout/Sidebar";
 import StatusBar from "@/components/layout/StatusBar";
 import MapView from "@/components/map/MapView";
 import EarthquakePanel from "@/components/panel/EarthquakePanel";
+import EonetEventPanel from "@/components/panel/EonetEventPanel";
+import DisastersPanel from "@/components/panel/DisastersPanel";
 import IssPanel from "@/components/panel/IssPanel";
 import SpaceWeatherPanel from "@/components/panel/SpaceWeatherPanel";
 import { useSourceSync, type SourceSync } from "./useSourceSync";
@@ -83,7 +89,10 @@ function toSyncState(
  */
 export type PanelTarget =
   | { type: "entity"; entityId: string }
-  | { type: "domain"; domain: "space" };
+  | { type: "domain"; domain: DomainId };
+
+/** Sidebar domains that open a domain panel. */
+export type DomainId = "space" | "disasters";
 
 /** Clears an entity target when that entity left its source; domain targets are kept. */
 const pruneEntity =
@@ -120,6 +129,14 @@ export default function Workspace() {
     );
   }, []);
   const [issTrail, setIssTrail] = useState<TrailPoint[]>([]);
+  const onEonetSnapshot = useCallback((feed: EonetFeed) => {
+    setPanelTarget(
+      pruneEntity(
+        (id) => feed.entities.some((e) => e.id === id),
+        (id) => id.startsWith(EONET_ENTITY_PREFIX),
+      ),
+    );
+  }, []);
   const onIssSnapshot = useCallback((feed: IssFeed) => {
     setPanelTarget(
       pruneEntity(
@@ -152,6 +169,13 @@ export default function Workspace() {
     ISS_SYNC.pollIntervalMs,
     "ISS",
     onIssSnapshot,
+  );
+  // NASA EONET open natural events (earthquakes excluded): entities on the map.
+  const eonet = useSourceSync<EonetFeed>(
+    "/api/disasters/eonet",
+    NASA_EONET_SYNC.pollIntervalMs,
+    "NASA EONET",
+    onEonetSnapshot,
   );
   // Global index, no entity: only feeds the SPACE domain panel.
   const kp = useSourceSync<PlanetaryKpFeed>(
@@ -187,8 +211,23 @@ export default function Workspace() {
     "NOAA SWPC GOES X-ray",
     noop,
   );
-  // Aurora layer on the map: session state, off by default, not persisted.
-  const [auroraVisible, setAuroraVisible] = useState(false);
+  // Map layer visibility: rendering/interaction only (session state, not persisted).
+  // Data keeps syncing; entities, observations and health are unaffected.
+  const [layerVisibility, setLayerVisibility] = useState<MapLayerVisibility>(DEFAULT_LAYER_VISIBILITY);
+  /** Entity prefix of each layer whose selection must close when the layer is hidden. */
+  const selectionOwner: Partial<Record<MapLayerId, (entityId: string) => boolean>> = {
+    earthquakes: (id) => id.startsWith("earthquake:"),
+    eonet: (id) => id.startsWith(EONET_ENTITY_PREFIX),
+  };
+  const setLayers = (next: Partial<MapLayerVisibility>) => {
+    const hidden = (Object.keys(next) as MapLayerId[]).filter((id) => next[id] === false);
+    const owned = panelTarget?.type === "entity" && hidden.some((id) => selectionOwner[id]?.(panelTarget.entityId));
+    // A selected entity that is no longer drawn: back to the DISASTERS summary.
+    if (owned) setPanelTarget({ type: "domain", domain: "disasters" });
+    // Functional merge: never overwrite other layers with a stale render's values.
+    setLayerVisibility((prev) => ({ ...prev, ...next }));
+  };
+  const toggleLayer = (id: MapLayerId) => setLayers({ [id]: !layerVisibility[id] });
   const now = useNow(1000);
 
   const usgsState = toSyncState(USGS_EARTHQUAKES_SOURCE.id, usgs, USGS_SYNC, now);
@@ -198,6 +237,7 @@ export default function Workspace() {
   const plasmaState = toSyncState(NOAA_SWPC_RTSW_WIND_SOURCE.id, plasma, NOAA_RTSW_SYNC, now);
   const magState = toSyncState(NOAA_SWPC_RTSW_MAG_SOURCE.id, mag, NOAA_RTSW_SYNC, now);
   const xrayState = toSyncState(NOAA_SWPC_GOES_XRAY_SOURCE.id, xray, NOAA_XRAY_SYNC, now);
+  const eonetState = toSyncState(NASA_EONET_SOURCE.id, eonet, NASA_EONET_SYNC, now);
 
   const sources = [
     { id: USGS_EARTHQUAKES_SOURCE.id, name: USGS_EARTHQUAKES_SOURCE.name, state: usgsState, snapshot: usgs.snapshot },
@@ -207,6 +247,7 @@ export default function Workspace() {
     { id: NOAA_SWPC_RTSW_WIND_SOURCE.id, name: NOAA_SWPC_RTSW_WIND_SOURCE.name, state: plasmaState, snapshot: plasma.snapshot },
     { id: NOAA_SWPC_RTSW_MAG_SOURCE.id, name: NOAA_SWPC_RTSW_MAG_SOURCE.name, state: magState, snapshot: mag.snapshot },
     { id: NOAA_SWPC_GOES_XRAY_SOURCE.id, name: NOAA_SWPC_GOES_XRAY_SOURCE.name, state: xrayState, snapshot: xray.snapshot },
+    { id: NASA_EONET_SOURCE.id, name: NASA_EONET_SOURCE.name, state: eonetState, snapshot: eonet.snapshot },
   ];
   // Same aggregation for every source; no special rules.
   const globalHealth = aggregateHealth(sources.map((s) => s.state.health));
@@ -227,15 +268,27 @@ export default function Workspace() {
   // At most one panel: a domain view, or the selected entity (which belongs to exactly one source).
   let panel: React.ReactNode = null;
   const close = () => setPanelTarget(null);
-  if (panelTarget?.type === "domain") {
+  if (panelTarget?.type === "domain" && panelTarget.domain === "disasters") {
+    panel = (
+      <DisastersPanel
+        earthquakes={usgs.snapshot}
+        earthquakesHealth={usgsState.health}
+        eonet={eonet.snapshot}
+        eonetHealth={eonetState.health}
+        layerVisibility={layerVisibility}
+        onSetLayers={setLayers}
+        onClose={close}
+      />
+    );
+  } else if (panelTarget?.type === "domain") {
     panel = (
       <SpaceWeatherPanel
         kp={kp.snapshot}
         kpHealth={kpState.health}
         aurora={aurora.snapshot}
         auroraHealth={auroraState.health}
-        auroraVisible={auroraVisible}
-        onToggleAurora={() => setAuroraVisible((v) => !v)}
+        auroraVisible={layerVisibility.aurora}
+        onToggleAurora={() => toggleLayer("aurora")}
         plasma={plasma.snapshot}
         plasmaHealth={plasmaState.health}
         mag={mag.snapshot}
@@ -261,6 +314,22 @@ export default function Workspace() {
         />
       );
     }
+  } else if (selectedEntityId?.startsWith(EONET_ENTITY_PREFIX) && eonet.snapshot) {
+    const entity = eonet.snapshot.entities.find((e) => e.id === selectedEntityId);
+    const observation = eonet.snapshot.observations.find((o) => o.entityId === selectedEntityId);
+    if (entity && observation) {
+      panel = (
+        <EonetEventPanel
+          key={entity.id}
+          entity={entity}
+          observation={observation}
+          source={eonet.snapshot.source}
+          sourceHealth={eonetState.health}
+          onHideEonet={() => setLayers({ eonet: false })}
+          onClose={close}
+        />
+      );
+    }
   } else if (selectedEntityId && usgs.snapshot) {
     const entity = usgs.snapshot.entities.find((e) => e.id === selectedEntityId);
     const observation = usgs.snapshot.observations.find((o) => o.entityId === selectedEntityId);
@@ -272,6 +341,7 @@ export default function Workspace() {
           observation={observation}
           source={usgs.snapshot.source}
           sourceHealth={usgsState.health}
+          onHideEarthquakes={() => setLayers({ earthquakes: false })}
           onClose={close}
         />
       );
@@ -295,8 +365,9 @@ export default function Workspace() {
         <main className="relative min-w-0 flex-1">
           <MapView
             earthquakes={usgs.snapshot}
+            eonet={eonet.snapshot}
             aurora={aurora.snapshot}
-            auroraVisible={auroraVisible}
+            layerVisibility={layerVisibility}
             iss={iss.snapshot}
             issTrail={issTrailSegments}
             issPositions={issTrail}
@@ -308,9 +379,11 @@ export default function Workspace() {
       </div>
       <StatusBar
         sourceCount={sources.filter((s) => s.snapshot !== null).length}
-        // Kp, aurora, solar wind and X-ray create no Entity: only earthquakes and the ISS count.
+        // Earthquakes, the ISS and EONET events are entities; Kp, aurora, solar wind and X-ray are not.
         entityCount={
-          (usgs.snapshot?.entities.length ?? 0) + (iss.snapshot?.entities.length ?? 0)
+          (usgs.snapshot?.entities.length ?? 0) +
+          (iss.snapshot?.entities.length ?? 0) +
+          (eonet.snapshot?.entities.length ?? 0)
         }
         health={globalHealth}
       />

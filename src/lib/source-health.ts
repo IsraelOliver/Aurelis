@@ -59,6 +59,16 @@ export const NOAA_RTSW_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWin
  */
 export const NOAA_XRAY_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWindowMs: 5 * 60_000 };
 
+/**
+ * NASA EONET: near real time, with very different cadences per category.
+ * The route serves a snapshot at most ~4 min old (app/api/disasters/eonet)
+ * + 5 min poll ≈ 9 min; 20 min tolerates the slow (~10 s, ~5 MB) upstream
+ * call and transient delays. Measures the age of AURELIS's last successful
+ * snapshot, NOT how recently each event was updated. AURELIS operational
+ * policy, not a NASA SLA.
+ */
+export const NASA_EONET_SYNC: SyncConfig = { pollIntervalMs: 5 * 60_000, freshnessWindowMs: 20 * 60_000 };
+
 export function deriveHealth(input: {
   hasSnapshot: boolean;
   attempted: boolean;

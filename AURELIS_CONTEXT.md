@@ -85,7 +85,7 @@ Próximos passos planejados:
 
 - **SPACE**: ~~câmera oficial da ISS~~ (feito, Etapa 5C); ~~NOAA SWPC Kp, aurora OVATION, vento solar e IMF, raios X GOES~~ (feito, 6A–6D); condições astronômicas; poucos satélites selecionados no futuro.
 - **Capacidade futura transversal — CONTEXT / EVENTS** (não projetada nem implementada): observâncias atuais, eventos da semana, calendário astronômico, proveniência de fonte oficial, notificações opcionais.
-- Depois: **DISASTERS → WEATHER → AIR → NEWS / MARKETS → SEA → CYBER**.
+- Depois: **DISASTERS** (iniciado na 7A: NASA EONET) **→ WEATHER → AIR → NEWS / MARKETS → SEA → CYBER**.
 
 ### Conceitos futuros (nenhum implementado)
 
@@ -139,6 +139,8 @@ src/
       route.ts          # API interna: forecast OVATION no modelo AURELIS, só células não-zero (cache 4 min)
     api/space/weather/solar-wind/{plasma,mag}/
       route.ts          # APIs internas independentes: RTSW plasma / IMF ativos, últimas 6 h (cache 45 s)
+    api/disasters/eonet/
+      route.ts          # API interna: eventos abertos NASA EONET (Entities + Observations; earthquakes excluídos; cache 4 min; gzip)
     api/space/weather/xray/
       route.ts          # API interna: fluxo GOES 0.1–0.8 nm (6 h) + último evento oficial (cache 45 s)
   components/
@@ -155,6 +157,7 @@ src/
       basemap-layer.ts  # troca DARK/SATELLITE dentro do style AURELIS (imagery + overlays, restauração)
       WorldMap.tsx      # instancia o MapLibre (somente no browser)
       earthquake-layer.ts # domínio → GeoJSON source + circle layer + layer de seleção
+      eonet-layer.ts    # eventos EONET: geometria mais recente (Point anel / Polygon fill + contorno), seleção dourada
       iss-layer.ts      # domínio → source/layers da ISS (halo + núcleo + rótulo)
       aurora-layer.ts   # forecast OVATION → custom layer WebGL (textura da grade, interpolação visual, elevação visual no globo; opcional)
     panel/
@@ -164,25 +167,30 @@ src/
       SpaceWeatherPanel.tsx # painel de domínio SPACE: Kp estimado + forecast de aurora OVATION (sem Entity)
       KpTrendChart.tsx  # gráfico SVG das últimas 6 h de Kp estimado
       SolarWindSections.tsx # seções SOLAR WIND (plasma) e IMF do painel SPACE
+      EonetEventPanel.tsx # painel de um evento natural EONET
+      DisastersPanel.tsx # painel de domínio DISASTERS (resumo USGS + EONET)
       XraySection.tsx   # seção SOLAR X-RAY do painel SPACE + gráfico log 6 h
       SeriesChart.tsx   # gráfico SVG genérico de série temporal (quebra em lacunas e troca de spacecraft)
       IssCamera.tsx     # seção CAMERA: player oficial da NASA (aberto ao selecionar a ISS, sem autoplay)
   lib/
     categories.ts       # lista de categorias + tipo CategoryId
     format.ts           # formatação: UTC, coordenadas, magnitude, profundidade, tempo relativo
+    eonet-map.ts        # features do mapa EONET (só a geometria mais recente; anéis desdobrados no antimeridiano)
     xray.ts             # limiares de classe A/B/C/M/X (referência), posição log10, notação científica
     solar-wind.ts       # bzOrientation(): SOUTHWARD/NORTHWARD/ZERO (orientação física, não alerta)
     deduped-fetch.ts    # cache em módulo para rotas internas (uma chamada upstream por intervalo; falhas não guardadas)
     aurora-grid.ts      # grade OVATION → array 360 × 181 de valores (textura; valores inalterados)
     iss-trail.ts        # trilha recente da ISS: histórico limitado em memória + segmentação (lacunas, antimeridiano)
     iss-interpolation.ts # suavização visual do marcador: interpolação entre posições recebidas (sem extrapolação)
-    source-health.ts    # USGS_SYNC / ISS_SYNC / NOAA_KP_SYNC / NOAA_OVATION_SYNC / NOAA_RTSW_SYNC / NOAA_XRAY_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
+    source-health.ts    # USGS_SYNC / ISS_SYNC / NOAA_KP_SYNC / NOAA_OVATION_SYNC / NOAA_RTSW_SYNC / NOAA_XRAY_SYNC / NASA_EONET_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
     map-config.ts       # URL do basemap, view inicial, URL do worker
     sources/usgs/
       earthquakes.ts    # adapter USGS (server): fetch, validação, normalização
       source.ts         # IntelligenceSource USGS (dados estáticos, importável no cliente)
     sources/nasa/
       iss-media.ts      # NASA_ISS_STREAM: mídia oficial associada à ISS (config, sem API)
+      eonet.ts          # adapter NASA EONET v3 (server): validação, exclusão de earthquakes, geometria mais recente por data
+      eonet-source.ts   # IntelligenceSource NASA EONET + id de Entity
     sources/noaa/
       swpc-kp.ts        # adapter NOAA SWPC Kp (server): fetch, validação, normalização, janela 6 h
       goes-xray.ts      # adapter NOAA SWPC GOES X-ray primary (server): fluxo banda longa, último evento oficial
@@ -204,6 +212,7 @@ src/
     space.ts            # IssObservationData, IssFeed (resposta da API)
     space-weather.ts    # PlanetaryKpObservationData, PlanetaryKpFeed (sem entities)
     aurora.ts           # AuroraForecastData, AuroraGridCell, AuroraForecastFeed (sem entities)
+    eonet.ts            # EonetGeometry, EonetEventData, EonetFeed (Entities disaster:eonet:*)
     xray.ts             # GoesXrayFluxData, GoesXrayFlareData, GoesXrayFeed (sem entities)
     solar-wind.ts       # SolarWindPlasmaData, InterplanetaryMagneticFieldData, RtswFeed (sem entities)
     index.ts            # barrel (export type *)
@@ -591,6 +600,29 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **Não adicionado**: `alerts.json`, escala R1–R5, notificações, CME, fallback secondary, banda curta no UI, SUVI.
 - **UX**: o painel SPACE ficou longo (Kp, Aurora, Solar Wind, IMF, X-ray) e a sidebar lista 7 fontes (cabe em 900 px de altura; telas mais baixas podem apertar). Candidato a uma etapa futura de UX (seções recolhíveis/abas), sem framework novo agora.
 
+### DISASTERS — NASA EONET (Etapa 7A, oitava fonte)
+
+- **Fonte oficial**: NASA **Earth Observatory Natural Event Tracker (EONET) API v3** ("Version 3 is the latest version"), `https://eonet.gsfc.nasa.gov/api/v3/events?status=open` (público, sem key; ~5 MB e ~10–15 s por chamada). Docs: `/docs/v3`, `/what-is-eonet`, `/event-curation`; categorias em `/api/v3/categories`, fontes em `/api/v3/sources`.
+- **Disclaimer oficial**: *"All EONET metadata and services are intended to be used for visualization and general information purposes only and should not be construed as 'official' with regards to spatial or temporal extent … these representations are approximations at best."* Por isso: localização de Point = **`approximate`**, nunca `exact`; nota no painel ("EONET spatial and temporal extents may be approximate.").
+- **EONET é curador/agregador** → **nature `reported`**, confidence `unknown`; IntelligenceSource `nasa-eonet` ("NASA EONET", provider "NASA — Earth Observatory Natural Event Tracker (EONET)", government, reliability `unknown` — ser NASA não define confiabilidade). `event.sources` (ex.: GDACS, IRWIN, JTWC, NATICE, SIVolcano) são preservadas como **upstream sources** do evento (`{ id, url }`), **não** viram IntelligenceSources do AURELIS nem contam em SOURCES.
+- **Query**: só `status=open` (explícito; também é o default). Sem `days` e sem `limit`: um evento pode ficar aberto legitimamente por semanas. **Open ≠ acontecendo agora**: `closed: null` = aberto no EONET; a doc avisa que `closed` pode não representar o fim real. UI: "OPEN IN EONET". As regras de fechamento variam por categoria (ciclones: 5 dias sem atividade; vulcões: 6–7 semanas; para wildfires a página de curadoria não documenta regra) — no snapshot verificado (2026-10-06) **4 117 eventos abertos têm a geometria mais recente em 2024**, quase todos wildfires.
+- **Categorias atuais** (`/categories`): drought, dustHaze, **earthquakes**, floods, landslides, manmade, seaLakeIce, severeStorms, snow, tempExtremes, volcanoes, waterColor, wildfires. **Earthquakes are intentionally excluded from EONET ingestion because AURELIS uses the direct USGS feed for that event type** (qualquer evento com categoria `earthquakes`; sem deduplicação por coordenada/magnitude). Todas as categorias de um evento são preservadas; nenhuma é tratada como "primária".
+- **Entity** por evento: `disaster:eonet:<EONET_ID>`, category `disaster`, kind `natural-event`, label = título. **Point** mais recente → `location` approximate (+ `locationObservationId`). **Polygon** → **sem location** (nenhum centroide inventado).
+- **Observation** por evento: id `nasa-eonet:<event-id>:<data da geometria mais recente>`, `entityId`, nature `reported`, confidence `unknown`, `ingestedAt`; **sem `observedAt` e sem `reportedAt`**; `sourceRecordId` = id EONET; `sourceUrl` = link EONET do evento. `data`: `eonetId`, `title`, `description`, `categories`, `upstreamSources`, `eonetStatus: "open"`, `geometries` (histórico completo, ordenado por data) e `latestGeometryIndex`.
+- **Geometrias**: `{ date, type: "Point" | "Polygon", coordinates (GeoJSON, como publicado), magnitudeValue?, magnitudeUnit?, magnitudeDescription? }`. **`date`** — doc: *"will most likely be 00:00Z unless the source provided a particular time"* — preservada como data da geometria; **nunca promovida a `observedAt` nem `reportedAt`**; painel: "SOURCE GEOMETRY TIME". A **mais recente é escolhida por data real**, não pela posição no array. Magnitude só quando presente (null/ausente → indefinido, nunca 0); sem comparação entre categorias, sem severidade/score.
+- **Validação mínima** (`src/lib/sources/nasa/eonet.ts`): objeto com `events[]`; por evento id/título strings, `closed === null`, `categories`/`sources`/`geometry` arrays; por geometria data ISO com fuso, Point com lon ∈ [−180, 180] e lat ∈ [−90, 90], Polygon com anéis fechados de ≥ 4 posições válidas (RFC 7946), magnitude finita. Geometria inválida → descartada; evento sem nenhuma geometria válida → **não ingerido** (7A é geográfica); contadores em `metadata`.
+- **Snapshot verificado (2026-10-06)**: 7 204 eventos recebidos → **7 202 ingeridos**, 0 earthquakes, **2 descartados** por geometria inválida (lon 189; lat 200). Categorias: Wildfires 7 130, Sea and Lake Ice 33, Volcanoes 32, Severe Storms 7. **Todos Point**; nenhum Polygon no feed atual (Polygon coberto por testes de lógica). 7 984 geometrias no histórico.
+- **API interna**: `/api/disasters/eonet` (Browser → AURELIS → EONET). Cache em módulo de **4 min** (`dedupedFetcher`; falhas não guardadas); a resposta normalizada (~7,4 MB de JSON, por milhares de eventos) é **gzip** uma vez por snapshot → ~0,75 MB transferidos (menos que os ~5 MB do upstream).
+- **Polling/saúde**: `NASA_EONET_SYNC` = poll **5 min**, freshness **20 min**. A freshness mede a idade do **snapshot AURELIS**, não a atualização de cada evento; política operacional do AURELIS, não SLA da NASA. SourceHealth própria; falha com snapshot existente mantém o mapa e marca STALE.
+- **SOURCES** = 8 com tudo fresh (contagem genérica). **ENTITIES** = terremotos USGS + ISS + eventos EONET ingeridos (ex.: 35 + 1 + 7 202 = 7 238).
+- **Mapa** (`src/components/map/eonet-layer.ts`, `src/lib/eonet-map.ts`): uma GeoJSON source com **só a geometria mais recente** de cada evento (sem trilhas, sem ligar histórico, sem buffers). **Point** = anel ciano vazado (centro escuro translúcido), distinto dos círculos preenchidos dos terremotos; **Polygon** = fill ciano muito fraco (abaixo de fronteiras/rótulos) + contorno ciano discreto; selecionado = **dourado** (anel/contorno) e fill um pouco mais forte. Uma cor para todas as categorias; sem clustering, heatmap ou glow. Ordem: basemap/imagery < aurora < fill EONET < fronteiras/rótulos < contorno/pontos EONET < terremotos < ISS. Na superfície em GLOBE/FLAT × MAP/SATELLITE. **Antimeridiano**: só para desenhar, anéis de Polygon têm longitudes "desdobradas" (sem salto > 180°); os dados armazenados não mudam.
+- **Visibilidade de layers (7A.1) — DATA AVAILABILITY ≠ MAP VISIBILITY**: estado central e tipado `MapLayerVisibility = Record<MapLayerId, boolean>` (`src/lib/map-layers.ts`), com **só as layers que existem**: `earthquakes` (default **visível**), `eonet` (default **oculta**) e `aurora` (default oculta, migrada do boolean anterior sem mudar UX, renderer, default nem saúde). Estado de sessão no `Workspace`, sem localStorage (reload restaura os defaults), passado explicitamente a `MapView` → `WorldMap` (`layerVisibility`). Visibilidade altera **só** desenho e clique (`visibility: none` nas layers; oculta não recebe clique); **não** altera fetch, polling, cache, SourceHealth, snapshots, Entities, Observations, SOURCES nem ENTITIES, e os contadores do DisastersPanel mostram os dados existentes, não o que está desenhado. **DisastersPanel**: um controle por dataset (HIDE/SHOW EARTHQUAKES; SHOW EONET ON MAP/HIDE EONET) e uma ação secundária HIDE ALL (se alguma visível) / SHOW DEFAULT (terremotos visíveis, EONET oculta). Clicar DISASTERS não muda visibilidade. Esconder uma layer com uma entidade dela selecionada fecha a seleção e volta ao DisastersPanel (EarthquakePanel ganhou HIDE EARTHQUAKES e EonetEventPanel tem HIDE EONET, para isso ser possível com a seleção aberta); ISS, SPACE e Aurora não são afetados. Sem filtros por categoria/tempo, opacidade, legenda, gerenciador global ou persistência.
+- **Layer opcional, default oculta** (ajuste de UX da 7A): o EONET **é sempre sincronizado** (poll, SourceHealth, SOURCES, ENTITIES, contagens do DisastersPanel e snapshot em memória não dependem da visibilidade); só o desenho no mapa é opcional. `eonetVisible` (estado de sessão no `Workspace`, default **false**, não persistido; após reload volta oculta). Botão **SHOW EONET ON MAP / HIDE EONET** no DisastersPanel (e HIDE EONET no EonetEventPanel); abrir DISASTERS **não** liga a layer. Oculta = as três layers com `visibility: none` (não desenham nem recebem clique). Esconder com um evento EONET selecionado fecha a seleção e volta ao DisastersPanel; seleção de terremoto/ISS não é afetada. Nenhum evento é filtrado por idade: os ~7 200 continuam ingeridos.
+- **Seleção**: clicar em ponto/polígono EONET seleciona `disaster:eonet:<id>` e abre o **EonetEventPanel** (OPEN IN EONET, categorias, descrição se houver, tipo/posição approximate ou "polygon as published", SOURCE GEOMETRY TIME, magnitude se houver, nº de geometrias, nota de precisão, EVENT SOURCES com links em nova aba `noopener noreferrer`, proveniência, OPEN ORIGINAL SOURCE). Um painel por vez; ISS/terremoto/SPACE inalterados.
+- **DisastersPanel** (clicar **DISASTERS** na sidebar, `PanelTarget` de domínio `disasters`): EARTHQUAKES · 24H (USGS), EONET OPEN EVENTS (com contagem por categoria), saúde de USGS e NASA EONET, nota "EONET counts reflect events currently open in EONET, not a complete catalog of all natural hazards." Sem filtros.
+- **Performance**: 7 202 pontos numa única source; montar o GeoJSON ≈ 1 ms; sem componente React por evento. Visualmente denso em regiões com muitos incêndios (América do Norte).
+- Não implementado: filtros por categoria, clustering, busca, time slider, eventos fechados, alertas/notificações, Worldview/imagery, EONET Layers/WMS/WMTS, trilhas de tempestade/iceberg, score de severidade, deduplicação entre fontes, relações, integração com WEATHER.
+
 ### Dívida técnica
 
 - **Saúde da fonte** (*Future source health should model explicit states such as fresh, stale and unavailable instead of source-specific cache heuristics.*): **parcialmente resolvida na 4D** no cliente (`SourceHealth`). O servidor ainda usa a heurística de idade de 120 s específica da rota de terremotos; generalizar quando houver a segunda fonte.
@@ -623,6 +655,7 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **ISS (Where The ISS At?)**: primeira Entity móvel, posição a cada 5 s, painel próprio e saúde da fonte independente; estado global agregado (LIVE/PARTIAL/…).
 - **Primeira fonte operacional: USGS Earthquakes M2.5+ / 24 h**, normalizada no servidor (`/api/earthquakes`) e exibida como círculos em ciano no mapa, **sincronizada a cada 60 s** com saúde da fonte (syncing/fresh/stale/unavailable) e indicador LIVE real.
 - **Space Weather (NOAA SWPC Planetary Kp)**: terceira fonte, Kp estimado atual + tendência de 6 h no painel de domínio SPACE (clique em SPACE na sidebar); sem Entity e sem mapa.
+- **DISASTERS / NASA EONET**: oitava fonte; eventos naturais abertos no EONET (exceto earthquakes, que vêm do USGS) como Entities no mapa (ponto anel ou polígono), EonetEventPanel e DisastersPanel (clique em DISASTERS).
 - **Raios X solares (NOAA SWPC GOES, primary)**: sétima fonte, fluxo 0.1–0.8 nm atual (observed) + gráfico log de 6 h com bandas A–X e último evento de flare oficial (reported); sem Entity e sem mapa.
 - **Vento solar e IMF (NOAA SWPC RTSW)**: quinta e sexta fontes, medições in situ (observed) do spacecraft ativo: velocidade, densidade, temperatura, IMF Bz (SOUTHWARD/NORTHWARD) e Bt, com gráficos de 6 h no painel SPACE; sem Entity e sem mapa.
 - **Aurora forecast (NOAA SWPC OVATION)**: quarta fonte, forecast de 30–90 min em grade de 1° como layer opcional no mapa (SHOW ON MAP no painel SPACE) + resumo no painel; nature `forecast`, `validAt`; sem Entity.
@@ -632,7 +665,7 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 ## Ainda NÃO implementado (deliberadamente)
 
 - Outras fontes (cyber, aviação, marítimo, incêndios, clima…). Outros feeds USGS (All, M1+, M4.5+, Significant) e escolha de magnitude.
-- WebSocket/SSE (hoje: polling de 60 s para USGS, NOAA Kp, RTSW e GOES X-ray, 5 min para OVATION, 5 s para a ISS). Notificações de eventos novos.
+- WebSocket/SSE (hoje: polling de 60 s para USGS, NOAA Kp, RTSW e GOES X-ray, 5 min para OVATION e NASA EONET, 5 s para a ISS). Notificações de eventos novos.
 - Persistência e histórico de observações; reconciliação de Entity IDs por `ids` do USGS.
 - Clustering, popup, tooltip; endpoint Detail do USGS.
 - Outras fontes SPACE (Hubble, Tiangong, CelesTrak…), satellite.js, órbita, ground track, footprint visual, outras câmeras/streams (a única mídia é o stream oficial da NASA da ISS). Clima espacial além do Kp estimado e do forecast OVATION mais recente e do vento solar/IMF RTSW (forecast de Kp, alertas NOAA e escalas R/S/G, notificações, prótons/partículas, SUVI, fallback secondary do GOES, propagação/ETA do vento solar, Geospace, viewline, CME, GOES, timeline de aurora). CONTEXT / EVENTS (observâncias, eventos da semana, calendário astronômico).
@@ -685,3 +718,6 @@ npm start
 2026-10-06 14:40 | map/aurora-layer.ts, lib/aurora-grid.ts, map/WorldMap.tsx, panel/SpaceWeatherPanel.tsx, globals.css | Etapa 6B.1: aurora OVATION passa de polígonos 1° para custom layer WebGL2 (grade como textura 360×181, interpolação visual local smoothstep-bilinear com wrap de longitude e clamp nos polos); no GLOBE casca a 110 km (AURORA_VISUAL_ALTITUDE_METERS, constante de apresentação, não altitude NOAA), depth test sem escrita; FLAT sem altitude; paleta aurora (ciano-verde → verde → verde luminoso → violeta frio), rampa de opacidade suave. Dados, Observation e proveniência inalterados; sem animação; ativação ~60 ms (antes ~150 ms + ~2 s).
 2026-10-06 15:05 | lib/sources/noaa/{rtsw,source}.ts, app/api/space/weather/solar-wind/{plasma,mag}, types/solar-wind.ts, lib/{solar-wind,deduped-fetch,source-health}.ts, Workspace, panel/{SpaceWeatherPanel,SolarWindSections,SeriesChart,primitives}.tsx | Etapa 6C: quinta e sexta fontes, NOAA SWPC RTSW plasma e IMF pelos endpoints de 2026 (json/rtsw/*; antigos products/solar-wind/* removidos). Medições in situ (observed), só active=true, source preservado por amostra (troca de spacecraft mantida), latest por timestamp, 6 h, null/NaN nunca viram 0; time_tag sem fuso lido como UTC (suposição documentada); flags de qualidade não usadas. Rotas e healths independentes (cache 45 s, poll 60 s, freshness 5 min). Painel SPACE com SOLAR WIND e IMF (Bz SOUTHWARD/NORTHWARD, Bt, gráficos SVG). SOURCES contado genericamente (6); ENTITIES inalterado; nada no mapa. Correção: sr-only do SourceLink contido (relative). CONTEXT/EVENTS registrado como item futuro.
 2026-10-06 15:35 | lib/sources/noaa/{goes-xray,source}.ts, app/api/space/weather/xray, types/xray.ts, lib/{xray,source-health}.ts, Workspace, panel/{SpaceWeatherPanel,XraySection}.tsx | Etapa 6D: sétima fonte, NOAA SWPC GOES X-ray (feed primary). Fluxo 0.1–0.8 nm em W/m² por amostra de 1 min (observed; satélite real por amostra; fluxo ≤ 0/null/NaN descartado, nunca 0), 6 h, gráfico SVG com eixo log10 e bandas A/B/C/M/X de referência; último evento oficial (xray-flares-latest, nature reported, classe max_class oficial, begin/peak/end) com marcador no gráfico; fluxo instantâneo nunca vira classe de flare. Uma fonte/health (cache 45 s, poll 60 s, freshness 5 min). SOURCES 7; ENTITIES inalterado; nada no mapa; sem alerts/escala R.
+2026-10-06 16:10 | lib/sources/nasa/{eonet,eonet-source}.ts, app/api/disasters/eonet, types/eonet.ts, lib/{eonet-map,source-health}.ts, map/{eonet-layer,WorldMap,MapView}.tsx, Workspace, layout/Sidebar, panel/{EonetEventPanel,DisastersPanel}.tsx | Etapa 7A: domínio DISASTERS com NASA EONET v3 (oitava fonte), status=open sem days/limit; eventos como Entities disaster:eonet:<id> + Observation reported (sem observedAt/reportedAt; datas de geometria preservadas como tal); Point approximate, Polygon sem centroide; upstream sources preservadas; categoria earthquakes excluída (USGS direto); geometria mais recente por data; validação mínima com descartes contados (7 204 recebidos, 7 202 ingeridos, 2 inválidos, todos Point). Layer de anéis/polígonos com seleção dourada, EonetEventPanel e DisastersPanel. Cache 4 min (resposta gzip ~0,75 MB), poll 5 min, freshness 20 min. SOURCES 8; ENTITIES = USGS + ISS + EONET.
+2026-10-06 16:40 | Workspace, map/{eonet-layer,WorldMap,MapView}.tsx, panel/{DisastersPanel,EonetEventPanel}.tsx | Ajuste 7A: layers EONET opcionais e ocultas por padrão (eonetVisible, sessão, não persistido); SHOW EONET ON MAP / HIDE EONET no DisastersPanel (HIDE também no EonetEventPanel); esconder com evento EONET selecionado volta ao DisastersPanel. Sincronização, SourceHealth, SOURCES e ENTITIES independentes da visibilidade; sem filtro por idade.
+2026-10-06 17:05 | lib/map-layers.ts, Workspace, map/{earthquake-layer,WorldMap,MapView}.tsx, panel/{DisastersPanel,EarthquakePanel}.tsx | Etapa 7A.1: visibilidade de layers centralizada em MapLayerVisibility (earthquakes visível, eonet oculta, aurora oculta — Aurora migrada sem mudar UX); DisastersPanel com toggle por dataset + HIDE ALL/SHOW DEFAULT; esconder layer com entidade selecionada volta ao DisastersPanel; visibilidade não afeta sync, health, snapshots, entities, observations, SOURCES nem ENTITIES; merge funcional do estado.

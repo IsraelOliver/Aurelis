@@ -117,3 +117,10 @@ export function setEarthquakeData(
 
   map.getSource<GeoJSONSource>(EARTHQUAKES_SOURCE_ID)?.setData(data);
 }
+
+/** Shows or hides the earthquake layers, selection included (visibility only; data is kept). */
+export function setEarthquakesVisible(map: MapLibreMap, visible: boolean): void {
+  for (const id of [EARTHQUAKES_LAYER_ID, EARTHQUAKES_SELECTED_LAYER_ID]) {
+    map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+  }
+}

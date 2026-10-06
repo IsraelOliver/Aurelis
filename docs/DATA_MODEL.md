@@ -15,6 +15,7 @@ São apenas tipos (sem banco). A validação runtime de dados externos fica nos 
 | `space.ts`        | `IssObservationData`, `IssFeed` (dados específicos da ISS) |
 | `space-weather.ts`| `PlanetaryKpObservationData`, `PlanetaryKpFeed` (Kp planetário NOAA SWPC, sem Entity) |
 | `aurora.ts`       | `AuroraForecastData`, `AuroraGridCell`, `AuroraForecastFeed` (forecast OVATION, sem Entity) |
+| `eonet.ts`        | `EonetGeometry`, `EonetEventData`, `EonetFeed` (eventos naturais NASA EONET: Entities `disaster:eonet:*`, Observations reported) |
 | `xray.ts`         | `GoesXrayFluxData`, `GoesXrayFlareData`, `GoesXrayFeed` (fluxo GOES observed + último evento reported, sem Entity) |
 | `solar-wind.ts`   | `SolarWindPlasmaData`, `InterplanetaryMagneticFieldData`, `RtswFeed` (RTSW in situ, observed, sem Entity) |
 | `source-health.ts`| `SourceHealth`, `SourceSyncState`, `GlobalHealth` (estado técnico da integração) |
@@ -144,6 +145,8 @@ Exemplo, NOAA SWPC Kp (`src/lib/sources/noaa/swpc-kp.ts`):
 - **AURELIS NORMALIZATION ASSUMPTION:** interpretado como UTC devido às convenções operacionais da SWPC (produtos e materiais em UTC/Universal Time); não é uma propriedade declarada no schema do JSON.
 
 NOAA SWPC RTSW (`src/lib/sources/noaa/rtsw.ts`) segue a mesma regra, com justificativa própria documentada no adapter (fato: `time_tag` sem fuso; suposição: UTC).
+
+**Datas que não são observação nem publicação:** quando a fonte associa uma data a uma geometria sem semântica garantida (ex.: NASA EONET — "most likely 00:00Z unless the source provided a particular time"), ela fica nos dados especializados (`EonetGeometry.date`) e **não** preenche `observedAt` nem `reportedAt`. A Observation pode existir só com `ingestedAt`.
 
 ### Identidade e IDs
 

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { CATEGORIES } from "@/lib/categories";
 import { formatAgo } from "@/lib/format";
 import type { SourceHealth } from "@/types";
+import type { DomainId } from "@/components/Workspace";
 import CategoryIcon from "./CategoryIcon";
 
 export interface SidebarSource {
@@ -13,7 +14,7 @@ export interface SidebarSource {
 }
 
 /** Categories that open a domain panel (global, non-geographic data). */
-const DOMAIN_PANELS = new Set<string>(["space"]);
+const DOMAIN_PANELS: Record<string, DomainId> = { space: "space", disasters: "disasters" };
 
 const ROW =
   "group relative flex h-9 w-full items-center gap-3 rounded px-3 text-left text-fg-muted transition-colors hover:bg-elevated hover:text-fg data-[active=true]:bg-deep data-[active=true]:text-fg";
@@ -28,8 +29,8 @@ function HealthDot({ health }: { health: SourceHealth }) {
 }
 
 /**
- * Layer list. Categories are not wired to filters yet. SPACE opens the SPACE
- * WEATHER domain panel; `data-active` (gold bar + deep blue) marks the open
+ * Layer list. Categories are not wired to filters yet. SPACE and DISASTERS
+ * open their domain panels; `data-active` (gold bar + deep blue) marks the open
  * domain panel. The other rows stay inert, so none pretends to be filtering.
  * Collapsible to an icon rail (session state, not persisted): labels move to
  * tooltips and sources become one health dot each.
@@ -40,8 +41,8 @@ export default function Sidebar({
   onOpenDomain,
 }: {
   sources: SidebarSource[];
-  activeDomain: "space" | null;
-  onOpenDomain: (domain: "space") => void;
+  activeDomain: DomainId | null;
+  onOpenDomain: (domain: DomainId) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -71,7 +72,8 @@ export default function Sidebar({
 
       <ul className="flex flex-col gap-px px-2">
         {CATEGORIES.map((category) => {
-          const isDomain = DOMAIN_PANELS.has(category.id);
+          const domain = DOMAIN_PANELS[category.id];
+          const isDomain = domain !== undefined;
           const hint = isDomain ? `Open ${category.label} panel` : "Layer controls not available yet";
           const content = (
             <>
@@ -99,7 +101,7 @@ export default function Sidebar({
                   data-active={activeDomain === category.id}
                   aria-pressed={activeDomain === category.id}
                   title={collapsed ? `${category.label} — ${hint}` : hint}
-                  onClick={() => onOpenDomain("space")}
+                  onClick={() => onOpenDomain(domain)}
                 >
                   {content}
                 </button>
