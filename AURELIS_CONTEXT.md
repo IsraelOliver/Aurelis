@@ -103,6 +103,7 @@ Próximos passos planejados:
 - Modelo de domínio (Entity, Observation, Source, GeoLocation, Relationship) com proveniência.
 - **USGS Earthquakes** (M2.5+, 24 h) com Intelligence Panel.
 - **SPACE**: a **ISS** (NORAD 25544, Entity `space:norad:25544`) é a primeira Entity móvel, com posição atualizada periodicamente (~5 s) e painel próprio.
+- **SPACE WEATHER**: índice planetário **Kp estimado** da NOAA SWPC (terceira fonte), dado global sem Entity e sem mapa, no painel de domínio SPACE.
 - Polling controlado por fonte; `SourceHealth` por fonte (SYNCING / FRESH / STALE / UNAVAILABLE) e estado global multi-source (LIVE / PARTIAL / …).
 
 ## Stack atual
@@ -131,12 +132,14 @@ src/
       route.ts          # API interna: terremotos no modelo AURELIS (cache 60 s)
     api/space/iss/
       route.ts          # API interna: posição da ISS no modelo AURELIS (dedupe 4 s)
+    api/space/weather/kp/
+      route.ts          # API interna: Kp planetário NOAA SWPC no modelo AURELIS (cache 45 s)
   components/
-    Workspace.tsx       # client: snapshot + saúde da fonte + seleção; Topbar/Sidebar/Map/Panel/StatusBar
+    Workspace.tsx       # client: snapshots + saúde das fontes + PanelTarget (entity | domain); Topbar/Sidebar/Map/Panel/StatusBar
     useSourceSync.ts    # polling controlado e genérico de uma rota interna (setTimeout recursivo)
     layout/
       Topbar.tsx        # marca, busca (visual), indicador LIVE (inativo)
-      Sidebar.tsx       # categorias (sem filtro) + fontes realmente carregadas
+      Sidebar.tsx       # categorias (sem filtro; SPACE abre o painel de domínio) + fontes realmente carregadas
       CategoryIcon.tsx  # ícones SVG inline das categorias
       StatusBar.tsx     # SOURCES / ENTITIES / STATUS reais
     map/
@@ -150,19 +153,24 @@ src/
       primitives.tsx    # moldura e peças comuns do Intelligence Panel
       EarthquakePanel.tsx # painel do terremoto selecionado
       IssPanel.tsx      # painel da ISS selecionada
+      SpaceWeatherPanel.tsx # painel de domínio SPACE: Kp estimado NOAA SWPC (sem Entity)
+      KpTrendChart.tsx  # gráfico SVG das últimas 6 h de Kp estimado
       IssCamera.tsx     # seção CAMERA: player oficial da NASA (aberto ao selecionar a ISS, sem autoplay)
   lib/
     categories.ts       # lista de categorias + tipo CategoryId
     format.ts           # formatação: UTC, coordenadas, magnitude, profundidade, tempo relativo
     iss-trail.ts        # trilha recente da ISS: histórico limitado em memória + segmentação (lacunas, antimeridiano)
     iss-interpolation.ts # suavização visual do marcador: interpolação entre posições recebidas (sem extrapolação)
-    source-health.ts    # USGS_SYNC / ISS_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
+    source-health.ts    # USGS_SYNC / ISS_SYNC / NOAA_KP_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
     map-config.ts       # URL do basemap, view inicial, URL do worker
     sources/usgs/
       earthquakes.ts    # adapter USGS (server): fetch, validação, normalização
       source.ts         # IntelligenceSource USGS (dados estáticos, importável no cliente)
     sources/nasa/
       iss-media.ts      # NASA_ISS_STREAM: mídia oficial associada à ISS (config, sem API)
+    sources/noaa/
+      swpc-kp.ts        # adapter NOAA SWPC Kp (server): fetch, validação, normalização, janela 6 h
+      source.ts         # IntelligenceSource NOAA SWPC Kp + URL do produto
     sources/wtia/
       iss.ts            # adapter Where The ISS At? (server): fetch, validação, normalização
       source.ts         # IntelligenceSource WTIA + ISS_ENTITY_ID
@@ -176,6 +184,7 @@ src/
     source-health.ts    # SourceHealth, SourceSyncState, GlobalHealth
     earthquake.ts       # EarthquakeObservationData, EarthquakeFeed (resposta da API)
     space.ts            # IssObservationData, IssFeed (resposta da API)
+    space-weather.ts    # PlanetaryKpObservationData, PlanetaryKpFeed (sem entities)
     index.ts            # barrel (export type *)
 public/
   map-styles/
@@ -478,6 +487,28 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - Painel: TRACKED PATH explica "At reported altitude on globe; on the surface on flat map."
 - Não implementado: órbita prevista, TLE, satellite.js, linha até o chão, footprint, modelo 3D, outros satélites.
 
+### Terceira fonte: NOAA SWPC — Planetary Kp (Etapa 6A)
+
+- **Fonte oficial**: NOAA Space Weather Prediction Center, produto JSON público `https://services.swpc.noaa.gov/json/planetary_k_index_1m.json` (sem autenticação, sem API key; dados NOAA/NWS em domínio público, sem exigência de atribuição além de não atribuir à NOAA autoria/endosso). Página do produto: `https://www.swpc.noaa.gov/products/planetary-k-index` (atualiza a cada minuto). Formato verificado em 2026-10-06: array de `{ time_tag, kp_index, estimated_kp, kp }`, ~6 h de amostras de 1 min, em ordem crescente.
+- **IntelligenceSource** `noaa-swpc-kp` ("NOAA SWPC — Planetary Kp", provider NOAA SWPC, category `government`, **reliability `unknown`**: ser NOAA não define confiabilidade sem metodologia própria).
+- **Dado global sem localização**: Kp é um índice planetário. **Sem Entity**, sem `location`, sem `entityId`; nada é desenhado no mapa (nenhuma layer, marcador, polígono, glow, cor de atmosfera ou aurora). Valida a regra **MAP → dados geográficos; PANELS → dados globais/não geográficos**.
+- **Observation sem Entity**: `Observation<PlanetaryKpObservationData>` com id `noaa-swpc-kp:<observedAt>`, **nature `estimated`** (a NOAA chama o produto de *Estimated* 3-hour Planetary Kp, derivado em tempo quase real de magnetômetros terrestres), confidence `unknown`, `observedAt` = `time_tag`, sem `reportedAt` (a fonte não dá horário de publicação), `ingestedAt` do servidor, `sourceRecordId` = `time_tag` bruto, `sourceUrl` = endpoint.
+- **Campos usados**: `estimated_kp` → `estimatedKp` (exibido). `kp_index` e `kp` (ex.: "2M", "1P") ficam **brutos** em `kpIndex`/`kpCode`, não exibidos: sua derivação não está documentada pela fonte.
+- **`time_tag`**:
+  - **SOURCE FACT**: `time_tag` = `"YYYY-MM-DDTHH:MM:SS"`, **sem offset/fuso**; o schema do JSON não declara o fuso do campo.
+  - **AURELIS NORMALIZATION ASSUMPTION**: os produtos e materiais operacionais da SWPC usam UTC/Universal Time; seguindo essa convenção, o AURELIS **interpreta `time_tag` como UTC** e o normaliza para ISO 8601 com `Z` (`observedAt`), usado para ordenar e exibir. É uma suposição de normalização documentada, **não** uma propriedade explícita do schema. Indício consistente (não prova): a última amostra coincide, em até 1 min, com o `Last-Modified` GMT do arquivo.
+  - Defesa: amostra mais de 10 min no futuro é rejeitada (sinal de que a suposição de fuso falhou).
+- **Validação mínima** (`src/lib/sources/noaa/swpc-kp.ts`, sem Zod): payload precisa ser array; cada registro precisa de `time_tag` no formato exato e data real, e `estimated_kp` numérico em **0–9** (faixa documentada do Kp). Registros inválidos ou com `time_tag` duplicado são ignorados individualmente (contados em `metadata.recordsRejected`); payload não-array ou sem nenhum registro válido → erro 502.
+- **Amostra atual** = Observation válida com **maior `observedAt`** (ordenação por timestamp, nunca pela posição no array): `latestObservationId`.
+- **Histórico**: só a janela das **últimas 6 h** relativa à amostra mais recente (≤ ~360 amostras), dentro do snapshot. Sem banco, sem Echo, sem acumulação no cliente.
+- **API interna**: Browser → `/api/space/weather/kp` → adapter → NOAA. Cache em módulo de **45 s** (no máximo uma chamada à NOAA a cada 45 s; requisições simultâneas compartilham a chamada; falhas não ficam em cache, então dado velho nunca é servido como atual). O navegador nunca chama a NOAA.
+- **Polling/saúde**: `NOAA_KP_SYNC` = poll **60 s** (`useSourceSync`, fetch → espera 60 s → fetch) e freshness **180 s** (≤ 45 s de cache + 60 s de poll + margem, como USGS). SourceHealth própria (syncing/fresh/stale/unavailable) e entra no `aggregateHealth` sem regra especial (NOAA stale + outras fresh → PARTIAL/DEGRADED).
+- **SOURCES** passa a contar 3 (USGS, WTIA, NOAA SWPC) quando as três têm snapshot. **ENTITIES não muda**: continua terremotos + ISS (Kp não cria Entity).
+- **Painel de domínio**: clicar **SPACE** na sidebar abre o **SpaceWeatherPanel** (`src/components/panel/SpaceWeatherPanel.tsx`). O `Workspace` passou de `selectedEntityId` para `PanelTarget = { type: "entity"; entityId } | { type: "domain"; domain: "space" }`: um painel por vez (SPACE → SpaceWeatherPanel; ISS → IssPanel; terremoto → EarthquakePanel). A linha SPACE da sidebar é um botão (`aria-pressed`, barra dourada quando aberta); as demais categorias continuam inertes.
+- **Conteúdo do painel**: PLANETARY Kp com o valor atual grande (dourado) + tag ESTIMATED; notas "Near-real-time planetary Kp estimate from NOAA SWPC." e "Kp ranges from 0 to 9 and represents planetary geomagnetic activity."; TREND · LAST 6 H; PROVENANCE (LATEST ESTIMATE UTC, INGESTED, SOURCE, NATURE ESTIMATED, AURELIS CONFIDENCE UNKNOWN); OPEN ORIGINAL SOURCE → página do produto (nova aba, `noopener noreferrer`).
+- **Gráfico** (`KpTrendChart.tsx`, SVG puro, sem biblioteca): Y 0→9 (grades 0/3/6/9), X tempo UTC com marcas a cada 2 h; linha ciano com segmentos retos só entre amostras consecutivas (lacuna > 3 min não é ligada); sem suavização nem amostras intermediárias; ponto mais recente em dourado. Linha tracejada de referência **G1 THRESHOLD · Kp 5** com a legenda "reference threshold from NOAA G scale; not an AURELIS alert". **Nenhum alerta G é exibido** a partir da estimativa; sem rótulos quiet/active/storm; sem cores de severidade.
+- Não implementado: forecast Kp, alertas/escalas NOAA, flares, prótons, vento solar, aurora/OVATION, CME, GOES, lua, outras fontes SPACE.
+
 ### Dívida técnica
 
 - **Saúde da fonte** (*Future source health should model explicit states such as fresh, stale and unavailable instead of source-specific cache heuristics.*): **parcialmente resolvida na 4D** no cliente (`SourceHealth`). O servidor ainda usa a heurística de idade de 120 s específica da rota de terremotos; generalizar quando houver a segunda fonte.
@@ -509,16 +540,17 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - Modelo de domínio em TypeScript (`src/types/`): Source, Location, Entity, Observation, Relationship + `EarthquakeObservationData`.
 - **ISS (Where The ISS At?)**: primeira Entity móvel, posição a cada 5 s, painel próprio e saúde da fonte independente; estado global agregado (LIVE/PARTIAL/…).
 - **Primeira fonte operacional: USGS Earthquakes M2.5+ / 24 h**, normalizada no servidor (`/api/earthquakes`) e exibida como círculos em ciano no mapa, **sincronizada a cada 60 s** com saúde da fonte (syncing/fresh/stale/unavailable) e indicador LIVE real.
+- **Space Weather (NOAA SWPC Planetary Kp)**: terceira fonte, Kp estimado atual + tendência de 6 h no painel de domínio SPACE (clique em SPACE na sidebar); sem Entity e sem mapa.
 - **Seleção de terremoto + Intelligence Panel** (dados e proveniência), destaque dourado do evento selecionado.
 - **Hierarquia de rótulos por zoom** no basemap (países → capitais → cidades/estados → detalhes); ver `docs/MAP_ARCHITECTURE.md`.
 
 ## Ainda NÃO implementado (deliberadamente)
 
 - Outras fontes (cyber, aviação, marítimo, incêndios, clima…). Outros feeds USGS (All, M1+, M4.5+, Significant) e escolha de magnitude.
-- WebSocket/SSE (hoje: polling de 60 s para USGS e 5 s para a ISS). Notificações de eventos novos.
+- WebSocket/SSE (hoje: polling de 60 s para USGS e NOAA Kp, 5 s para a ISS). Notificações de eventos novos.
 - Persistência e histórico de observações; reconciliação de Entity IDs por `ids` do USGS.
 - Clustering, popup, tooltip; endpoint Detail do USGS.
-- Outras fontes SPACE (Hubble, Tiangong, CelesTrak…), satellite.js, órbita, ground track, footprint visual, outras câmeras/streams (a única mídia é o stream oficial da NASA da ISS), clima espacial.
+- Outras fontes SPACE (Hubble, Tiangong, CelesTrak…), satellite.js, órbita, ground track, footprint visual, outras câmeras/streams (a única mídia é o stream oficial da NASA da ISS). Clima espacial além do Kp estimado (forecast, alertas, flares, vento solar, aurora, CME, GOES).
 - Histórico persistente de posições da ISS (Echo); a trilha atual é só memória recente (10 min / 120 pontos).
 - Estruturas especializadas para outros domínios (avião, navio, malware…) e identificadores naturais.
 - Validação de payload com biblioteca de schema (hoje: validação mínima manual no adapter).
@@ -562,3 +594,5 @@ npm start
 2026-10-05 21:20 | map/iss-layer.ts, lib/iss-interpolation.ts, lib/iss-trail.ts, map/WorldMap.tsx, Workspace.tsx, panel/IssPanel.tsx | Etapa 5G: no GLOBE a ISS (marcador + rótulo, agora uma symbol layer) fica na altitude orbital reportada via symbol-height-offset nativo (altitudeKm×1000, escala real); altitude interpolada no mesmo displayTime (~5 s); FLAT sem elevação; trilha continua ground track na superfície; sem previsão orbital.
 2026-10-05 21:30 | map/iss-layer.ts | Trilha da ISS: a ponta mais antiga (35% do trajeto) desaparece gradualmente em vez de terminar seca; cada trecho entre pontos recebidos vira uma feature com progress (0 = mais antigo) e line-opacity data-driven. Geometria e regras da trilha inalteradas.
 2026-10-05 22:50 | map/iss-orbit-trail-layer.ts, map/iss-layer.ts, lib/iss-trail.ts, map/WorldMap.tsx, panel/IssPanel.tsx | Etapa 5H: no GLOBE a trilha da ISS é uma custom layer 3D (WebGL + projectTileFor3D do MapLibre) em altitude orbital real por ponto, terminando no marcador (mesmo displayTime ~5 s, endpoint visual não persistido), com oclusão por profundidade; FLAT mantém a trilha 2D; sem previsão orbital.
+2026-10-06 13:00 | lib/sources/noaa, app/api/space/weather/kp, types/space-weather.ts, lib/source-health.ts, Workspace, layout/Sidebar, panel/SpaceWeatherPanel.tsx, panel/KpTrendChart.tsx | Etapa 6A: terceira fonte, NOAA SWPC Planetary Kp (estimativa quase em tempo real, 1 min). Observation sem Entity e sem localização (nature estimated, confidence unknown, observedAt = time_tag lido como UTC); validação mínima e amostra atual pelo maior observedAt; janela de 6 h no snapshot; cache 45 s, poll 60 s, freshness 180 s. Workspace com PanelTarget (entity | domain); SPACE abre o SpaceWeatherPanel (valor atual + gráfico SVG 6 h + linha de referência G1). Nada no mapa; ENTITIES inalterado; SOURCES 3.
+2026-10-06 13:20 | lib/sources/noaa/swpc-kp.ts, AURELIS_CONTEXT.md, docs/DATA_MODEL.md | Correção semântica 6A: UTC do time_tag registrado como suposição de normalização AURELIS (convenção operacional SWPC), não como fato do schema (o campo não traz fuso). Comportamento inalterado.

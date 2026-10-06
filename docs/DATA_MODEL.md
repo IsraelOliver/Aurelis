@@ -66,6 +66,8 @@ Algo que uma fonte observou, reportou ou forneceu num momento. `T` é o payload 
 
 `confidence: ConfidenceLevel` (`unknown` | `low` | `medium` | `high`) é a confiança **nesta afirmação específica**. Na ausência de base para avaliar, usa-se `unknown`.
 
+**Observation sem Entity** (desde a Etapa 6A): dados globais/não geográficos não viram Entity nem ganham localização fictícia. Exemplo: o Kp planetário da NOAA SWPC é `Observation<PlanetaryKpObservationData>` (`src/types/space-weather.ts`) sem `entityId` e sem `location`, com `nature: "estimated"`; aparece só em painel de domínio, nunca no mapa, e não conta em ENTITIES.
+
 ## 3. Source — `IntelligenceSource`
 
 Um fornecedor de informação (feed, API, dataset, publicação).
@@ -125,6 +127,13 @@ Nem toda fonte fornece os três. Quando faltar `observedAt` ou `reportedAt`, o c
 ### Tempo
 
 Todas as datas são strings ISO 8601 em UTC (ex.: `2026-10-05T13:45:12Z`), tipadas como `IsoDateTime`. Não há classes próprias de data.
+
+**Horários de fonte sem fuso:** um timestamp de fonte sem fuso explícito **não** recebe fuso automaticamente. Se o AURELIS precisar normalizá-lo, a suposição deve ser **específica da fonte**, justificada pelas evidências disponíveis e documentada no adapter daquela fonte.
+
+Exemplo, NOAA SWPC Kp (`src/lib/sources/noaa/swpc-kp.ts`):
+
+- **SOURCE FACT:** `time_tag` (`"YYYY-MM-DDTHH:MM:SS"`) não contém fuso/offset.
+- **AURELIS NORMALIZATION ASSUMPTION:** interpretado como UTC devido às convenções operacionais da SWPC (produtos e materiais em UTC/Universal Time); não é uma propriedade declarada no schema do JSON.
 
 ### Identidade e IDs
 

@@ -7,3 +7,4 @@ export type * from "./relationship";
 export type * from "./earthquake";
 export type * from "./source-health";
 export type * from "./space";
+export type * from "./space-weather";

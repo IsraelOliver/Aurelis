@@ -105,6 +105,8 @@ Implementada **só no style JSON**, com `minzoom`, filtros e `line-opacity` inte
 | `aurelis-iss-orbit-trail-layer` | custom layer WebGL (`renderingMode: "3d"`, `projectTileFor3D`) | **só no GLOBE**: trilha recente da ISS em altitude orbital real (cada vértice = posição recebida a `altitudeKm × 1000` m), terminando no marcador (mesmo ~5 s de atraso; endpoint interpolado só visual), oclusão por profundidade, sem divisão no antimeridiano; visível só com a ISS selecionada | `src/components/map/iss-orbit-trail-layer.ts`, `src/lib/iss-trail.ts` |
 | `aurelis-iss-trail-source` / `aurelis-iss-trail-layer` | GeoJSON (MultiLineString) + line (ciano) | **só no FLAT**: trilha recente da ISS sobre o mapa; cada trecho entre pontos é uma feature com `progress`, e a ponta mais antiga desaparece gradualmente (`line-opacity` 0 → 0.55 nos primeiros 35%): só posições recebidas (10 min / 120 pts), quebrada em lacunas > 30 s e no antimeridiano; visível só com a ISS selecionada; **não** é órbita | `src/lib/iss-trail.ts`, `src/components/map/iss-layer.ts` |
 
+Dados globais sem localização (ex.: Kp planetário NOAA SWPC, Etapa 6A) **não** têm camada no mapa: aparecem em painéis de domínio (SPACE → SpaceWeatherPanel). O mapa mostra apenas dados geográficos.
+
 Regras para todas as camadas de dados:
 
 - são sources/layers MapLibre separadas, adicionadas sobre o basemap em runtime (após o evento `load`), **nunca** dentro de `aurelis-dark.json`;

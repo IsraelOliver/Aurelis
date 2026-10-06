@@ -24,6 +24,14 @@ export const USGS_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWindowMs
  */
 export const ISS_SYNC: SyncConfig = { pollIntervalMs: 5_000, freshnessWindowMs: 15_000 };
 
+/**
+ * NOAA SWPC planetary Kp: product updates every minute. The route serves a
+ * snapshot at most ~45 s old (MIN_FETCH_INTERVAL_MS in
+ * app/api/space/weather/kp/route.ts) + 60 s poll ≈ 105 s; 180 s leaves margin
+ * for one slow/failed attempt, as for USGS.
+ */
+export const NOAA_KP_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWindowMs: 180_000 };
+
 export function deriveHealth(input: {
   hasSnapshot: boolean;
   attempted: boolean;

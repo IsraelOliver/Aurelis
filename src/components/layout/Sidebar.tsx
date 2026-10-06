@@ -11,12 +11,26 @@ export interface SidebarSource {
   ageMs: number | null;
 }
 
+/** Categories that open a domain panel (global, non-geographic data). */
+const DOMAIN_PANELS = new Set<string>(["space"]);
+
+const ROW =
+  "group relative flex h-9 w-full items-center gap-3 rounded px-3 text-left text-fg-muted transition-colors hover:bg-elevated hover:text-fg data-[active=true]:bg-deep data-[active=true]:text-fg";
+
 /**
- * Layer list. Categories are not wired to filters yet.
- * The `data-active` styles (gold bar + deep blue) are prepared for the future
- * filter; nothing sets it today, so no row pretends to be filtering.
+ * Layer list. Categories are not wired to filters yet. SPACE opens the SPACE
+ * WEATHER domain panel; `data-active` (gold bar + deep blue) marks the open
+ * domain panel. The other rows stay inert, so none pretends to be filtering.
  */
-export default function Sidebar({ sources }: { sources: SidebarSource[] }) {
+export default function Sidebar({
+  sources,
+  activeDomain,
+  onOpenDomain,
+}: {
+  sources: SidebarSource[];
+  activeDomain: "space" | null;
+  onOpenDomain: (domain: "space") => void;
+}) {
   return (
     <aside className="hidden w-56 shrink-0 flex-col border-r border-line bg-surface md:flex">
       <div className="flex h-10 items-center px-4">
@@ -26,24 +40,42 @@ export default function Sidebar({ sources }: { sources: SidebarSource[] }) {
       </div>
 
       <ul className="flex flex-col gap-px px-2">
-        {CATEGORIES.map((category) => (
-          <li
-            key={category.id}
-            className="group relative flex h-9 items-center gap-3 rounded px-3 text-fg-muted transition-colors hover:bg-elevated hover:text-fg data-[active=true]:bg-deep data-[active=true]:text-fg"
-            title="Layer controls not available yet"
-          >
-            <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gold opacity-0 group-data-[active=true]:opacity-100" />
-            <span className="text-fg-subtle transition-colors group-hover:text-fg-muted">
-              <CategoryIcon id={category.id} />
-            </span>
-            <span className="text-[11px] font-medium tracking-[0.16em]">
-              {category.label}
-            </span>
-            <span className="ml-auto font-mono text-[10px] text-fg-subtle">
-              —
-            </span>
-          </li>
-        ))}
+        {CATEGORIES.map((category) => {
+          const content = (
+            <>
+              <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gold opacity-0 group-data-[active=true]:opacity-100" />
+              <span className="text-fg-subtle transition-colors group-hover:text-fg-muted">
+                <CategoryIcon id={category.id} />
+              </span>
+              <span className="text-[11px] font-medium tracking-[0.16em]">
+                {category.label}
+              </span>
+              <span className="ml-auto font-mono text-[10px] text-fg-subtle">
+                —
+              </span>
+            </>
+          );
+          return (
+            <li key={category.id}>
+              {DOMAIN_PANELS.has(category.id) ? (
+                <button
+                  type="button"
+                  className={ROW}
+                  data-active={activeDomain === category.id}
+                  aria-pressed={activeDomain === category.id}
+                  title={`Open ${category.label} panel`}
+                  onClick={() => onOpenDomain("space")}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div className={ROW} title="Layer controls not available yet">
+                  {content}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
 
       <div className="mt-auto border-t border-line px-4 py-3 text-[11px] leading-relaxed text-fg-subtle">
