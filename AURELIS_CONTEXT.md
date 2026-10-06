@@ -83,7 +83,8 @@ Hoje: USGS ~60 s; ISS ~5 s. Fontes futuras podem ter frequências diferentes, ou
 
 Próximos passos planejados:
 
-- **SPACE**: ~~câmera oficial da ISS~~ (feito, Etapa 5C); NOAA SWPC; condições astronômicas; poucos satélites selecionados no futuro.
+- **SPACE**: ~~câmera oficial da ISS~~ (feito, Etapa 5C); ~~NOAA SWPC Kp, aurora OVATION, vento solar e IMF~~ (feito, 6A–6C); condições astronômicas; poucos satélites selecionados no futuro.
+- **Capacidade futura transversal — CONTEXT / EVENTS** (não projetada nem implementada): observâncias atuais, eventos da semana, calendário astronômico, proveniência de fonte oficial, notificações opcionais.
 - Depois: **DISASTERS → WEATHER → AIR → NEWS / MARKETS → SEA → CYBER**.
 
 ### Conceitos futuros (nenhum implementado)
@@ -136,6 +137,8 @@ src/
       route.ts          # API interna: Kp planetário NOAA SWPC no modelo AURELIS (cache 45 s)
     api/space/weather/aurora/
       route.ts          # API interna: forecast OVATION no modelo AURELIS, só células não-zero (cache 4 min)
+    api/space/weather/solar-wind/{plasma,mag}/
+      route.ts          # APIs internas independentes: RTSW plasma / IMF ativos, últimas 6 h (cache 45 s)
   components/
     Workspace.tsx       # client: snapshots + saúde das fontes + PanelTarget (entity | domain); Topbar/Sidebar/Map/Panel/StatusBar
     useSourceSync.ts    # polling controlado e genérico de uma rota interna (setTimeout recursivo)
@@ -158,14 +161,18 @@ src/
       IssPanel.tsx      # painel da ISS selecionada
       SpaceWeatherPanel.tsx # painel de domínio SPACE: Kp estimado + forecast de aurora OVATION (sem Entity)
       KpTrendChart.tsx  # gráfico SVG das últimas 6 h de Kp estimado
+      SolarWindSections.tsx # seções SOLAR WIND (plasma) e IMF do painel SPACE
+      SeriesChart.tsx   # gráfico SVG genérico de série temporal (quebra em lacunas e troca de spacecraft)
       IssCamera.tsx     # seção CAMERA: player oficial da NASA (aberto ao selecionar a ISS, sem autoplay)
   lib/
     categories.ts       # lista de categorias + tipo CategoryId
     format.ts           # formatação: UTC, coordenadas, magnitude, profundidade, tempo relativo
+    solar-wind.ts       # bzOrientation(): SOUTHWARD/NORTHWARD/ZERO (orientação física, não alerta)
+    deduped-fetch.ts    # cache em módulo para rotas internas (uma chamada upstream por intervalo; falhas não guardadas)
     aurora-grid.ts      # grade OVATION → array 360 × 181 de valores (textura; valores inalterados)
     iss-trail.ts        # trilha recente da ISS: histórico limitado em memória + segmentação (lacunas, antimeridiano)
     iss-interpolation.ts # suavização visual do marcador: interpolação entre posições recebidas (sem extrapolação)
-    source-health.ts    # USGS_SYNC / ISS_SYNC / NOAA_KP_SYNC / NOAA_OVATION_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
+    source-health.ts    # USGS_SYNC / ISS_SYNC / NOAA_KP_SYNC / NOAA_OVATION_SYNC / NOAA_RTSW_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
     map-config.ts       # URL do basemap, view inicial, URL do worker
     sources/usgs/
       earthquakes.ts    # adapter USGS (server): fetch, validação, normalização
@@ -174,6 +181,7 @@ src/
       iss-media.ts      # NASA_ISS_STREAM: mídia oficial associada à ISS (config, sem API)
     sources/noaa/
       swpc-kp.ts        # adapter NOAA SWPC Kp (server): fetch, validação, normalização, janela 6 h
+      rtsw.ts           # adapters NOAA SWPC RTSW plasma e mag (server): validação, active only, janela 6 h
       ovation.ts        # adapter NOAA SWPC OVATION (server): validação, longitude −180..180, células não-zero
       source.ts         # IntelligenceSources NOAA SWPC Kp e OVATION + URLs dos produtos
     sources/wtia/
@@ -191,6 +199,7 @@ src/
     space.ts            # IssObservationData, IssFeed (resposta da API)
     space-weather.ts    # PlanetaryKpObservationData, PlanetaryKpFeed (sem entities)
     aurora.ts           # AuroraForecastData, AuroraGridCell, AuroraForecastFeed (sem entities)
+    solar-wind.ts       # SolarWindPlasmaData, InterplanetaryMagneticFieldData, RtswFeed (sem entities)
     index.ts            # barrel (export type *)
 public/
   map-styles/
@@ -538,6 +547,27 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **Painel SPACE** (SpaceWeatherPanel): mantém **PLANETARY Kp** (tag **ESTIMATED**, gráfico, proveniência própria) e ganha **AURORA FORECAST · 30–90 MIN** (tag **FORECAST**, botão SHOW ON MAP / HIDE AURORA, notas da NOAA sobre OVATION e lead time, aviso de que não garante visibilidade — nuvens, luz do dia e condições locais não são considerados —, VALID FOR, SOURCE OBS. TIME, GRID ativas/total, PEAK MODEL VALUE, INGESTED, SOURCE, NATURE, AURELIS CONFIDENCE, link da fonte). Saúde por produto dentro do painel (`PanelShell.sourceHealth` ficou opcional): "Kp SOURCE STALE" / "AURORA SOURCE STALE · Showing the last available forecast."; um produto stale não esconde o outro. Kp ESTIMATED ≠ Aurora FORECAST.
 - Não implementado: visibilidade personalizada, localização do usuário, nuvens, nascer/pôr do sol, lua, score de astrofoto, alertas/notificações de aurora, timeline/animação, imagens JPG hemisféricas, viewline experimental, vento solar, Bz, CME.
 
+### Quinta e sexta fontes: NOAA SWPC Real-Time Solar Wind — plasma e IMF (Etapa 6C)
+
+- **Endpoints de 2026** (SCN 26-21 da NWS/SWPC, 2026-03-02): `https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json` (plasma) e `https://services.swpc.noaa.gov/json/rtsw/rtsw_mag_1m.json` (campo magnético); públicos, sem key. Os antigos `products/solar-wind/plasma-*.json`, `mag-*.json` e `ephemerides.json` foram **descontinuados e removidos (~2026-04-30)** e não são usados. Página: `https://www.swpc.noaa.gov/products/real-time-solar-wind`.
+- **Semântica oficial**: medições **in situ** de plasma e campo magnético por espaçonaves **a montante da Terra, tipicamente perto de L1**; "operational quality data", com possíveis interrupções. Spacecraft: SOLAR-1 e IMAP I-ALiRT (desde 2026), DSCOVR, ACE. **nature `observed`**, confidence `unknown`.
+- **Schema verificado (2026-10-06)**: arrays de ~24 h, 1 min, de todos os spacecraft disponíveis, ordem decrescente. Plasma: `time_tag, active, source, proton_speed, proton_density, proton_temperature`, componentes de velocidade (às vezes null), campos alpha (null), `proton_sample_size`, `max_*_flag`, `overall_quality`. Mag: `time_tag, active, source, bt, bx/by/bz_gse, bx/by/bz_gsm, theta/phi_gse/gsm, range/scale/sensitivity (null), manual_mode, sample_size, max_*_flag, overall_quality` (há `-9999` em flags).
+- **`source` + `active`** (definidos no SCN): `source` = satélite de origem; `active` = satélite considerado ativo pelos forecasters da SWPC naquele momento (a SWPC pode trocar a qualquer instante). AURELIS usa só `active === true`, **sem fixar spacecraft no código**; `source` é preservado **por amostra** (`data.spacecraft`). Se o ativo mudar dentro da janela, a série mistura spacecraft — correto, sem fingir continuidade (o gráfico quebra a linha na troca e lista os spacecraft). Plasma e mag podem ter spacecraft ativos diferentes. Hoje: SOLAR1 nos dois (IMAP e ACE presentes como inativos).
+- **Sem Entity** (os spacecraft não são rastreados como objetos nesta etapa), **sem localização** e **nada no mapa** (nenhum marcador em L1, linha Sol–Terra, partículas, magnetosfera ou linhas de campo).
+- **Observations**: `noaa-swpc-rtsw-wind:<source>:<observedAt>` / `noaa-swpc-rtsw-mag:<source>:<observedAt>`; `observedAt` = `time_tag`; sem `reportedAt`; `sourceRecordId` = `<source>:<time_tag>`; `sourceUrl` = arquivo do produto.
+- **Campos e unidades** (o JSON não traz unidades; SCN 26-21 mapeia `speed→proton_speed`, `density→proton_density`, `temperature→proton_temperature`; unidades conforme a documentação RTSW da SWPC — p/cc, km/s, K; Bx/By/Bz/Bt em nT GSM —, e o viewer oficial rotula Bz em nT): `protonSpeedKms`, `protonDensityPerCm3`, `protonTemperatureK`; `bzGsmNt`, `btNt`, `bxGsmNt`, `byGsmNt`. Sem conversões. Ausente/null/NaN fica **undefined, nunca 0**; amostra sem nenhuma medição principal é descartada.
+- **`time_tag`**: **SOURCE FACT**: `"YYYY-MM-DDTHH:MM:SS"` **sem fuso**. **AURELIS NORMALIZATION ASSUMPTION**: lido como UTC, porque os produtos de texto real-time da SWPC declaram horários em UT, o viewer oficial interpreta e rotula esses horários como UTC ("Z") e as amostras mais novas coincidem com o `Last-Modified` (GMT) dos arquivos. Não é propriedade declarada do schema; documentado no adapter. Amostra > 10 min no futuro é rejeitada.
+- **Flags de qualidade** (`overall_quality`, `max_*_flag`): **não usadas** — sem semântica documentada para estes arquivos (a página do produto diz que o novo display ainda não tem quality flags). Não afetam confiança.
+- **Latest** de cada feed = amostra ativa com **maior timestamp** (independente da ordem do array); plasma e mag têm latest independentes e não precisam coincidir.
+- **Histórico**: só as amostras ativas das **últimas 6 h** relativas ao latest (~360 por feed, ~160 KB por resposta vs 1,7–3 MB upstream). Lacunas reais permanecem; nada é sintetizado. Sem banco/Echo.
+- **API interna**: duas rotas independentes, `/api/space/weather/solar-wind/plasma` e `/api/space/weather/solar-wind/mag` (fetch, adapter, cache, erros e saúde separados), cada uma com cache em módulo de **45 s** (`src/lib/deduped-fetch.ts`; falhas nunca guardadas).
+- **Polling/saúde**: `NOAA_RTSW_SYNC` = poll **60 s** e freshness **5 min** (≤ 45 s de cache + 60 s de poll, tolerância a atrasos; as amostras chegam com alguns minutos de atraso na fonte) — **política operacional do AURELIS, não SLA da NOAA**. Duas SourceHealth independentes; mesma `aggregateHealth`, sem regra especial. Verificado: com o plasma falhando (simulado), PLASMA fica STALE mostrando a última medição, MAG continua FRESH e o status global vira DEGRADED.
+- **SOURCES** = contagem genérica de fontes com snapshot (6 com tudo fresh: USGS, WTIA, Kp, OVATION, RTSW plasma, RTSW mag). **ENTITIES** continua terremotos + ISS.
+- **Painel SPACE**: depois de Kp e Aurora, **SOLAR WIND · PLASMA** (velocidade grande em km/s + tag OBSERVED, densidade p/cm³, temperatura K discreta, gráfico de velocidade 6 h, nota "Measurements are taken upstream of Earth, typically near the Sun–Earth L1 point.", SPACECRAFT, MEASURED, INGESTED, SOURCE, NATURE, CONFIDENCE) e **INTERPLANETARY MAGNETIC FIELD** (IMF Bz em nT + tag **SOUTHWARD/NORTHWARD/ZERO** — só orientação física, Bz < 0 = sul, > 0 = norte —, nota curta sobre acoplamento do Bz sul, IMF Bt "total IMF magnitude", gráfico Bz 6 h com linha neutra em 0 e rótulos NORTH/SOUTH, proveniência própria). Saúde por feed no painel. Gráficos em SVG próprio (`SeriesChart.tsx`), segmentos retos, sem suavização, sem thresholds coloridos, sem vermelho.
+- **Nenhuma previsão derivada pelo AURELIS**: sem ETA até a Terra, sem propagação, sem Geospace, sem classificação slow/fast, sem limiar −5 nT, sem score, sem "aurora likely"/"storm".
+- Correção junto: o `sr-only` do `SourceLink` vazava (sem ancestral posicionado) e aumentava a altura do documento com o painel longo; o link agora é `relative`.
+- Não implementado: ephemerides RTSW, partículas energéticas, alpha, componentes GSE no UI, spacecraft como Entity, forecast/propagação, alertas, mapa.
+
 ### Dívida técnica
 
 - **Saúde da fonte** (*Future source health should model explicit states such as fresh, stale and unavailable instead of source-specific cache heuristics.*): **parcialmente resolvida na 4D** no cliente (`SourceHealth`). O servidor ainda usa a heurística de idade de 120 s específica da rota de terremotos; generalizar quando houver a segunda fonte.
@@ -570,6 +600,7 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **ISS (Where The ISS At?)**: primeira Entity móvel, posição a cada 5 s, painel próprio e saúde da fonte independente; estado global agregado (LIVE/PARTIAL/…).
 - **Primeira fonte operacional: USGS Earthquakes M2.5+ / 24 h**, normalizada no servidor (`/api/earthquakes`) e exibida como círculos em ciano no mapa, **sincronizada a cada 60 s** com saúde da fonte (syncing/fresh/stale/unavailable) e indicador LIVE real.
 - **Space Weather (NOAA SWPC Planetary Kp)**: terceira fonte, Kp estimado atual + tendência de 6 h no painel de domínio SPACE (clique em SPACE na sidebar); sem Entity e sem mapa.
+- **Vento solar e IMF (NOAA SWPC RTSW)**: quinta e sexta fontes, medições in situ (observed) do spacecraft ativo: velocidade, densidade, temperatura, IMF Bz (SOUTHWARD/NORTHWARD) e Bt, com gráficos de 6 h no painel SPACE; sem Entity e sem mapa.
 - **Aurora forecast (NOAA SWPC OVATION)**: quarta fonte, forecast de 30–90 min em grade de 1° como layer opcional no mapa (SHOW ON MAP no painel SPACE) + resumo no painel; nature `forecast`, `validAt`; sem Entity.
 - **Seleção de terremoto + Intelligence Panel** (dados e proveniência), destaque dourado do evento selecionado.
 - **Hierarquia de rótulos por zoom** no basemap (países → capitais → cidades/estados → detalhes); ver `docs/MAP_ARCHITECTURE.md`.
@@ -577,10 +608,10 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 ## Ainda NÃO implementado (deliberadamente)
 
 - Outras fontes (cyber, aviação, marítimo, incêndios, clima…). Outros feeds USGS (All, M1+, M4.5+, Significant) e escolha de magnitude.
-- WebSocket/SSE (hoje: polling de 60 s para USGS e NOAA Kp, 5 min para OVATION, 5 s para a ISS). Notificações de eventos novos.
+- WebSocket/SSE (hoje: polling de 60 s para USGS, NOAA Kp e RTSW, 5 min para OVATION, 5 s para a ISS). Notificações de eventos novos.
 - Persistência e histórico de observações; reconciliação de Entity IDs por `ids` do USGS.
 - Clustering, popup, tooltip; endpoint Detail do USGS.
-- Outras fontes SPACE (Hubble, Tiangong, CelesTrak…), satellite.js, órbita, ground track, footprint visual, outras câmeras/streams (a única mídia é o stream oficial da NASA da ISS). Clima espacial além do Kp estimado e do forecast OVATION mais recente (forecast de Kp, alertas, flares, vento solar/Bz, viewline, CME, GOES, timeline de aurora).
+- Outras fontes SPACE (Hubble, Tiangong, CelesTrak…), satellite.js, órbita, ground track, footprint visual, outras câmeras/streams (a única mídia é o stream oficial da NASA da ISS). Clima espacial além do Kp estimado e do forecast OVATION mais recente e do vento solar/IMF RTSW (forecast de Kp, alertas, flares, prótons/partículas, propagação/ETA do vento solar, Geospace, viewline, CME, GOES, timeline de aurora). CONTEXT / EVENTS (observâncias, eventos da semana, calendário astronômico).
 - Histórico persistente de posições da ISS (Echo); a trilha atual é só memória recente (10 min / 120 pontos).
 - Estruturas especializadas para outros domínios (avião, navio, malware…) e identificadores naturais.
 - Validação de payload com biblioteca de schema (hoje: validação mínima manual no adapter).
@@ -628,3 +659,4 @@ npm start
 2026-10-06 13:20 | lib/sources/noaa/swpc-kp.ts, AURELIS_CONTEXT.md, docs/DATA_MODEL.md | Correção semântica 6A: UTC do time_tag registrado como suposição de normalização AURELIS (convenção operacional SWPC), não como fato do schema (o campo não traz fuso). Comportamento inalterado.
 2026-10-06 14:15 | types/observation.ts, types/aurora.ts, lib/sources/noaa/{ovation,source}.ts, app/api/space/weather/aurora, lib/aurora-grid.ts, map/aurora-layer.ts, map/{WorldMap,MapView}.tsx, Workspace, panel/{SpaceWeatherPanel,primitives}.tsx, lib/source-health.ts, globals.css | Etapa 6B: quarta fonte, NOAA SWPC OVATION aurora (forecast 30–90 min). EvidenceNature ganha 'forecast' e Observation ganha validAt. Uma Observation por snapshot (validAt = Forecast Time; 'Observation Time' preservado em data.inputObservationTime, não como observedAt); valor 'Aurora' sem semântica confirmada → auroraValue; longitude 0..359 → −180..180; só células não-zero transferidas/renderizadas (contagens totais preservadas). Layer opcional de células 1° (sem interpolação, polos limitados, split no antimeridiano) entre basemap e fronteiras; cache 4 min, poll 5 min, freshness 20 min (política AURELIS). Painel SPACE com Kp (ESTIMATED) e Aurora (FORECAST) separados, saúde por produto. SOURCES 4; ENTITIES inalterado.
 2026-10-06 14:40 | map/aurora-layer.ts, lib/aurora-grid.ts, map/WorldMap.tsx, panel/SpaceWeatherPanel.tsx, globals.css | Etapa 6B.1: aurora OVATION passa de polígonos 1° para custom layer WebGL2 (grade como textura 360×181, interpolação visual local smoothstep-bilinear com wrap de longitude e clamp nos polos); no GLOBE casca a 110 km (AURORA_VISUAL_ALTITUDE_METERS, constante de apresentação, não altitude NOAA), depth test sem escrita; FLAT sem altitude; paleta aurora (ciano-verde → verde → verde luminoso → violeta frio), rampa de opacidade suave. Dados, Observation e proveniência inalterados; sem animação; ativação ~60 ms (antes ~150 ms + ~2 s).
+2026-10-06 15:05 | lib/sources/noaa/{rtsw,source}.ts, app/api/space/weather/solar-wind/{plasma,mag}, types/solar-wind.ts, lib/{solar-wind,deduped-fetch,source-health}.ts, Workspace, panel/{SpaceWeatherPanel,SolarWindSections,SeriesChart,primitives}.tsx | Etapa 6C: quinta e sexta fontes, NOAA SWPC RTSW plasma e IMF pelos endpoints de 2026 (json/rtsw/*; antigos products/solar-wind/* removidos). Medições in situ (observed), só active=true, source preservado por amostra (troca de spacecraft mantida), latest por timestamp, 6 h, null/NaN nunca viram 0; time_tag sem fuso lido como UTC (suposição documentada); flags de qualidade não usadas. Rotas e healths independentes (cache 45 s, poll 60 s, freshness 5 min). Painel SPACE com SOLAR WIND e IMF (Bz SOUTHWARD/NORTHWARD, Bt, gráficos SVG). SOURCES contado genericamente (6); ENTITIES inalterado; nada no mapa. Correção: sr-only do SourceLink contido (relative). CONTEXT/EVENTS registrado como item futuro.

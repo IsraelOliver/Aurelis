@@ -113,7 +113,7 @@ export function SourceLink({ href, srText }: { href: string; srText: string }) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex h-8 items-center justify-center gap-2 rounded border border-line text-[10px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
+        className="relative flex h-8 items-center justify-center gap-2 rounded border border-line text-[10px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-line-strong hover:text-fg"
       >
         OPEN ORIGINAL SOURCE
         <span className="sr-only">({srText}, opens in a new tab)</span>

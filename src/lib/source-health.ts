@@ -43,6 +43,15 @@ export const NOAA_OVATION_SYNC: SyncConfig = {
   freshnessWindowMs: 20 * 60_000,
 };
 
+/**
+ * NOAA SWPC RTSW plasma and magnetic field (one config, two independent
+ * feeds): 1-minute samples, published with a few minutes of delay. The routes
+ * serve a snapshot at most ~45 s old (MIN_FETCH_INTERVAL_MS in
+ * app/api/space/weather/solar-wind/*) + 60 s poll ≈ 105 s; 5 min tolerates
+ * transient delays. AURELIS operational policy, not an NOAA SLA.
+ */
+export const NOAA_RTSW_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWindowMs: 5 * 60_000 };
+
 export function deriveHealth(input: {
   hasSnapshot: boolean;
   attempted: boolean;

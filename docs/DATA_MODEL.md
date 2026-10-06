@@ -15,6 +15,7 @@ São apenas tipos (sem banco). A validação runtime de dados externos fica nos 
 | `space.ts`        | `IssObservationData`, `IssFeed` (dados específicos da ISS) |
 | `space-weather.ts`| `PlanetaryKpObservationData`, `PlanetaryKpFeed` (Kp planetário NOAA SWPC, sem Entity) |
 | `aurora.ts`       | `AuroraForecastData`, `AuroraGridCell`, `AuroraForecastFeed` (forecast OVATION, sem Entity) |
+| `solar-wind.ts`   | `SolarWindPlasmaData`, `InterplanetaryMagneticFieldData`, `RtswFeed` (RTSW in situ, observed, sem Entity) |
 | `source-health.ts`| `SourceHealth`, `SourceSyncState`, `GlobalHealth` (estado técnico da integração) |
 
 Regra central: **o AURELIS nunca apresenta uma interpretação como se fosse uma observação comprovada.**
@@ -140,6 +141,8 @@ Exemplo, NOAA SWPC Kp (`src/lib/sources/noaa/swpc-kp.ts`):
 
 - **SOURCE FACT:** `time_tag` (`"YYYY-MM-DDTHH:MM:SS"`) não contém fuso/offset.
 - **AURELIS NORMALIZATION ASSUMPTION:** interpretado como UTC devido às convenções operacionais da SWPC (produtos e materiais em UTC/Universal Time); não é uma propriedade declarada no schema do JSON.
+
+NOAA SWPC RTSW (`src/lib/sources/noaa/rtsw.ts`) segue a mesma regra, com justificativa própria documentada no adapter (fato: `time_tag` sem fuso; suposição: UTC).
 
 ### Identidade e IDs
 

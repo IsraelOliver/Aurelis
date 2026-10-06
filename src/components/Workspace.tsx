@@ -4,14 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AuroraForecastFeed,
   EarthquakeFeed,
+  InterplanetaryMagneticFieldFeed,
   IssFeed,
   PlanetaryKpFeed,
+  SolarWindPlasmaFeed,
   SourceSyncState,
 } from "@/types";
 import {
   ISS_SYNC,
   NOAA_KP_SYNC,
   NOAA_OVATION_SYNC,
+  NOAA_RTSW_SYNC,
   USGS_SYNC,
   aggregateHealth,
   deriveHealth,
@@ -19,7 +22,12 @@ import {
 } from "@/lib/source-health";
 import { USGS_EARTHQUAKES_SOURCE } from "@/lib/sources/usgs/source";
 import { ISS_ENTITY_ID, WTIA_ISS_SOURCE } from "@/lib/sources/wtia/source";
-import { NOAA_SWPC_KP_SOURCE, NOAA_SWPC_OVATION_SOURCE } from "@/lib/sources/noaa/source";
+import {
+  NOAA_SWPC_KP_SOURCE,
+  NOAA_SWPC_OVATION_SOURCE,
+  NOAA_SWPC_RTSW_MAG_SOURCE,
+  NOAA_SWPC_RTSW_WIND_SOURCE,
+} from "@/lib/sources/noaa/source";
 import { appendTrailPoint, trailToSegments, type TrailPoint } from "@/lib/iss-trail";
 import Topbar from "@/components/layout/Topbar";
 import Sidebar from "@/components/layout/Sidebar";
@@ -156,6 +164,19 @@ export default function Workspace() {
     "NOAA SWPC OVATION",
     noop,
   );
+  // Real-time solar wind: two independent feeds (fetch, errors, health), no entity, nothing on the map.
+  const plasma = useSourceSync<SolarWindPlasmaFeed>(
+    "/api/space/weather/solar-wind/plasma",
+    NOAA_RTSW_SYNC.pollIntervalMs,
+    "NOAA SWPC RTSW plasma",
+    noop,
+  );
+  const mag = useSourceSync<InterplanetaryMagneticFieldFeed>(
+    "/api/space/weather/solar-wind/mag",
+    NOAA_RTSW_SYNC.pollIntervalMs,
+    "NOAA SWPC RTSW mag",
+    noop,
+  );
   // Aurora layer on the map: session state, off by default, not persisted.
   const [auroraVisible, setAuroraVisible] = useState(false);
   const now = useNow(1000);
@@ -164,19 +185,20 @@ export default function Workspace() {
   const issState = toSyncState(WTIA_ISS_SOURCE.id, iss, ISS_SYNC, now);
   const kpState = toSyncState(NOAA_SWPC_KP_SOURCE.id, kp, NOAA_KP_SYNC, now);
   const auroraState = toSyncState(NOAA_SWPC_OVATION_SOURCE.id, aurora, NOAA_OVATION_SYNC, now);
-  const globalHealth = aggregateHealth([
-    usgsState.health,
-    issState.health,
-    kpState.health,
-    auroraState.health,
-  ]);
+  const plasmaState = toSyncState(NOAA_SWPC_RTSW_WIND_SOURCE.id, plasma, NOAA_RTSW_SYNC, now);
+  const magState = toSyncState(NOAA_SWPC_RTSW_MAG_SOURCE.id, mag, NOAA_RTSW_SYNC, now);
 
   const sources = [
-    { id: USGS_EARTHQUAKES_SOURCE.id, name: USGS_EARTHQUAKES_SOURCE.name, state: usgsState },
-    { id: WTIA_ISS_SOURCE.id, name: WTIA_ISS_SOURCE.name, state: issState },
-    { id: NOAA_SWPC_KP_SOURCE.id, name: NOAA_SWPC_KP_SOURCE.name, state: kpState },
-    { id: NOAA_SWPC_OVATION_SOURCE.id, name: NOAA_SWPC_OVATION_SOURCE.name, state: auroraState },
+    { id: USGS_EARTHQUAKES_SOURCE.id, name: USGS_EARTHQUAKES_SOURCE.name, state: usgsState, snapshot: usgs.snapshot },
+    { id: WTIA_ISS_SOURCE.id, name: WTIA_ISS_SOURCE.name, state: issState, snapshot: iss.snapshot },
+    { id: NOAA_SWPC_KP_SOURCE.id, name: NOAA_SWPC_KP_SOURCE.name, state: kpState, snapshot: kp.snapshot },
+    { id: NOAA_SWPC_OVATION_SOURCE.id, name: NOAA_SWPC_OVATION_SOURCE.name, state: auroraState, snapshot: aurora.snapshot },
+    { id: NOAA_SWPC_RTSW_WIND_SOURCE.id, name: NOAA_SWPC_RTSW_WIND_SOURCE.name, state: plasmaState, snapshot: plasma.snapshot },
+    { id: NOAA_SWPC_RTSW_MAG_SOURCE.id, name: NOAA_SWPC_RTSW_MAG_SOURCE.name, state: magState, snapshot: mag.snapshot },
   ];
+  // Same aggregation for every source; no special rules.
+  const globalHealth = aggregateHealth(sources.map((s) => s.state.health));
+
   const sourceSummary = sources
     .map((s) => `${s.name}: ${s.state.health.toUpperCase()}`)
     .join(" · ");
@@ -202,6 +224,10 @@ export default function Workspace() {
         auroraHealth={auroraState.health}
         auroraVisible={auroraVisible}
         onToggleAurora={() => setAuroraVisible((v) => !v)}
+        plasma={plasma.snapshot}
+        plasmaHealth={plasmaState.health}
+        mag={mag.snapshot}
+        magHealth={magState.health}
         onClose={close}
       />
     );
@@ -267,10 +293,8 @@ export default function Workspace() {
         {panel}
       </div>
       <StatusBar
-        sourceCount={
-          [usgs.snapshot, iss.snapshot, kp.snapshot, aurora.snapshot].filter(Boolean).length
-        }
-        // Kp and the aurora forecast create no Entity: only earthquakes and the ISS count.
+        sourceCount={sources.filter((s) => s.snapshot !== null).length}
+        // Kp, aurora and solar wind create no Entity: only earthquakes and the ISS count.
         entityCount={
           (usgs.snapshot?.entities.length ?? 0) + (iss.snapshot?.entities.length ?? 0)
         }

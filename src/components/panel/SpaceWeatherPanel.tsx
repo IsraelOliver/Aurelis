@@ -1,6 +1,13 @@
-import type { AuroraForecastFeed, PlanetaryKpFeed, SourceHealth } from "@/types";
+import type {
+  AuroraForecastFeed,
+  InterplanetaryMagneticFieldFeed,
+  PlanetaryKpFeed,
+  SolarWindPlasmaFeed,
+  SourceHealth,
+} from "@/types";
 import { EMPTY, Note, PanelShell, Row, Section, SourceLink, Time } from "./primitives";
 import KpTrendChart from "./KpTrendChart";
+import { ImfSection, SolarWindSection } from "./SolarWindSections";
 
 const count = new Intl.NumberFormat("en-US");
 
@@ -24,9 +31,9 @@ function Tag({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * SPACE domain panel: global/modeled data, no Entity. Two different products
- * with separate provenance and health: planetary Kp (ESTIMATED) and the
- * OVATION aurora forecast (FORECAST). Reads only loaded snapshots; never fetches.
+ * SPACE domain panel: global/modeled data, no Entity. Separate products with
+ * separate provenance and health: planetary Kp (ESTIMATED), the OVATION
+ * aurora forecast (FORECAST), and real-time solar wind plasma and IMF (OBSERVED). Reads only loaded snapshots; never fetches.
  */
 export default function SpaceWeatherPanel({
   kp,
@@ -35,6 +42,10 @@ export default function SpaceWeatherPanel({
   auroraHealth,
   auroraVisible,
   onToggleAurora,
+  plasma,
+  plasmaHealth,
+  mag,
+  magHealth,
   onClose,
 }: {
   kp: PlanetaryKpFeed | null;
@@ -43,6 +54,10 @@ export default function SpaceWeatherPanel({
   auroraHealth: SourceHealth;
   auroraVisible: boolean;
   onToggleAurora: () => void;
+  plasma: SolarWindPlasmaFeed | null;
+  plasmaHealth: SourceHealth;
+  mag: InterplanetaryMagneticFieldFeed | null;
+  magHealth: SourceHealth;
   onClose: () => void;
 }) {
   const latest = kp?.observations.find((o) => o.id === kp.latestObservationId) ?? null;
@@ -149,6 +164,12 @@ export default function SpaceWeatherPanel({
         </dl>
       </Section>
       {aurora?.source.url && <SourceLink href={aurora.source.url} srText="NOAA SWPC aurora 30 minute forecast" />}
+
+      <SolarWindSection feed={plasma} health={plasmaHealth} />
+      <ImfSection feed={mag} health={magHealth} />
+      {(plasma ?? mag)?.source.url && (
+        <SourceLink href={(plasma ?? mag)!.source.url!} srText="NOAA SWPC Real Time Solar Wind" />
+      )}
     </PanelShell>
   );
 }
