@@ -15,6 +15,7 @@ São apenas tipos (sem banco). A validação runtime de dados externos fica nos 
 | `space.ts`        | `IssObservationData`, `IssFeed` (dados específicos da ISS) |
 | `space-weather.ts`| `PlanetaryKpObservationData`, `PlanetaryKpFeed` (Kp planetário NOAA SWPC, sem Entity) |
 | `aurora.ts`       | `AuroraForecastData`, `AuroraGridCell`, `AuroraForecastFeed` (forecast OVATION, sem Entity) |
+| `weather.ts`      | `WeatherCurrentData`, `WeatherHourlyData`, `WeatherPointFeed` (clima de ponto Open-Meteo: current estimated + hourly forecast, sem Entity) |
 | `eonet.ts`        | `EonetGeometry`, `EonetEventData`, `EonetFeed` (eventos naturais NASA EONET: Entities `disaster:eonet:*`, Observations reported) |
 | `xray.ts`         | `GoesXrayFluxData`, `GoesXrayFlareData`, `GoesXrayFeed` (fluxo GOES observed + último evento reported, sem Entity) |
 | `solar-wind.ts`   | `SolarWindPlasmaData`, `InterplanetaryMagneticFieldData`, `RtswFeed` (RTSW in situ, observed, sem Entity) |
@@ -147,6 +148,8 @@ Exemplo, NOAA SWPC Kp (`src/lib/sources/noaa/swpc-kp.ts`):
 NOAA SWPC RTSW (`src/lib/sources/noaa/rtsw.ts`) segue a mesma regra, com justificativa própria documentada no adapter (fato: `time_tag` sem fuso; suposição: UTC).
 
 **Datas que não são observação nem publicação:** quando a fonte associa uma data a uma geometria sem semântica garantida (ex.: NASA EONET — "most likely 00:00Z unless the source provided a particular time"), ela fica nos dados especializados (`EonetGeometry.date`) e **não** preenche `observedAt` nem `reportedAt`. A Observation pode existir só com `ingestedAt`.
+
+**Modelos meteorológicos (Etapa 8A)**: "condições atuais" de um modelo (Open-Meteo `current`) são `estimated` com `validAt`, não `observed` (não é estação); valores para horas futuras são `forecast` com `validAt`. Nenhum dos dois usa `observedAt`. Fontes **query-scoped** (o dado depende de uma coordenada escolhida pelo usuário) não criam Entity, e o snapshot de uma query nunca é reutilizado para outra.
 
 ### Identidade e IDs
 

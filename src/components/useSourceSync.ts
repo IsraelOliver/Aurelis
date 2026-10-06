@@ -1,41 +1,38 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import {
+  emptySyncState,
+  syncFailed,
+  syncStateFor,
+  syncSucceeded,
+  type SyncState,
+} from "@/lib/sync-state";
 
 /** Any normalized snapshot served by an internal source route. */
 interface Snapshot {
   metadata: { ingestedAt: string };
 }
 
-export interface SourceSync<T extends Snapshot> {
-  /** Latest valid snapshot; kept when a later attempt fails. */
-  snapshot: T | null;
-  attempted: boolean;
-  lastAttemptFailed: boolean;
-  lastAttemptAt?: string;
-  lastSuccessAt?: string;
-  /** Snapshot age when received (server clock), and client time of receipt. */
-  ageAtReceiptMs?: number;
-  receivedAtMs?: number;
-}
+export type SourceSync<T extends Snapshot> = Omit<SyncState<T>, "url">;
 
 /**
  * Polls one internal API route (never the external source) in a controlled
  * loop: fetch → wait for it to finish → schedule the next one. At most one
  * request in flight and one timer per source. Cleanup aborts both, so
  * StrictMode's mount/unmount/mount leaves a single chain.
+ *
+ * `url` may change (query-scoped sources, e.g. a weather point) or be null
+ * (no query: nothing is fetched). State is scoped to the URL: a snapshot is
+ * kept on failure only for refreshes of the same URL, never shown for another.
  */
 export function useSourceSync<T extends Snapshot>(
-  url: string,
+  url: string | null,
   pollIntervalMs: number,
   label: string,
   onSnapshot: (snapshot: T) => void,
 ): SourceSync<T> {
-  const [state, setState] = useState<SourceSync<T>>({
-    snapshot: null,
-    attempted: false,
-    lastAttemptFailed: false,
-  });
+  const [state, setState] = useState<SyncState<T>>(() => emptySyncState<T>(url));
   const onSnapshotRef = useRef(onSnapshot);
 
   useEffect(() => {
@@ -43,6 +40,7 @@ export function useSourceSync<T extends Snapshot>(
   }, [onSnapshot]);
 
   useEffect(() => {
+    if (url === null) return;
     let stopped = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let controller: AbortController | undefined;
@@ -71,27 +69,14 @@ export function useSourceSync<T extends Snapshot>(
 
         failing = false;
         onSnapshotRef.current(snapshot);
-        setState({
-          snapshot,
-          attempted: true,
-          lastAttemptFailed: false,
-          lastAttemptAt,
-          lastSuccessAt: new Date(receivedAtMs).toISOString(),
-          ageAtReceiptMs,
-          receivedAtMs,
-        });
+        setState(syncSucceeded(url, snapshot, { lastAttemptAt, receivedAtMs, ageAtReceiptMs }));
       } catch (error) {
         if (stopped) return;
         // Log once per failure streak, not on every poll.
         if (!failing) console.warn(`[AURELIS] ${label} sync failed:`, error);
         failing = true;
-        // Keep the last snapshot: a failed refresh does not erase valid data.
-        setState((prev) => ({
-          ...prev,
-          attempted: true,
-          lastAttemptFailed: true,
-          lastAttemptAt,
-        }));
+        // Keep the last snapshot of THIS url: a failed refresh does not erase valid data.
+        setState((prev) => syncFailed(prev, url, lastAttemptAt));
       }
       if (!stopped) timer = setTimeout(run, pollIntervalMs);
     };
@@ -105,5 +90,7 @@ export function useSourceSync<T extends Snapshot>(
     };
   }, [url, pollIntervalMs, label]);
 
-  return state;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { url: _ignored, ...visible } = syncStateFor(state, url);
+  return visible;
 }

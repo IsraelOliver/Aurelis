@@ -69,6 +69,14 @@ export const NOAA_XRAY_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWin
  */
 export const NASA_EONET_SYNC: SyncConfig = { pollIntervalMs: 5 * 60_000, freshnessWindowMs: 20 * 60_000 };
 
+/**
+ * Open-Meteo point weather (query-scoped, on demand): only exists while a
+ * weather point is selected. Poll 10 min; freshness 30 min = age of the last
+ * successful AURELIS snapshot FOR THAT POINT, not the age of the model run.
+ * AURELIS operational policy, not an Open-Meteo SLA.
+ */
+export const OPEN_METEO_SYNC: SyncConfig = { pollIntervalMs: 10 * 60_000, freshnessWindowMs: 30 * 60_000 };
+
 export function deriveHealth(input: {
   hasSnapshot: boolean;
   attempted: boolean;

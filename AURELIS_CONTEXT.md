@@ -85,7 +85,7 @@ Próximos passos planejados:
 
 - **SPACE**: ~~câmera oficial da ISS~~ (feito, Etapa 5C); ~~NOAA SWPC Kp, aurora OVATION, vento solar e IMF, raios X GOES~~ (feito, 6A–6D); condições astronômicas; poucos satélites selecionados no futuro.
 - **Capacidade futura transversal — CONTEXT / EVENTS** (não projetada nem implementada): observâncias atuais, eventos da semana, calendário astronômico, proveniência de fonte oficial, notificações opcionais.
-- Depois: **DISASTERS** (iniciado na 7A: NASA EONET) **→ WEATHER → AIR → NEWS / MARKETS → SEA → CYBER**.
+- Depois: **DISASTERS** (iniciado na 7A: NASA EONET) **→ WEATHER** (iniciado na 8A: inspeção de ponto Open-Meteo) **→ AIR → NEWS / MARKETS → SEA → CYBER**.
 
 ### Conceitos futuros (nenhum implementado)
 
@@ -139,13 +139,15 @@ src/
       route.ts          # API interna: forecast OVATION no modelo AURELIS, só células não-zero (cache 4 min)
     api/space/weather/solar-wind/{plasma,mag}/
       route.ts          # APIs internas independentes: RTSW plasma / IMF ativos, últimas 6 h (cache 45 s)
+    api/weather/forecast/
+      route.ts          # API interna: clima de um ponto (Open-Meteo Best Match, current + 24 h; sem cache)
     api/disasters/eonet/
       route.ts          # API interna: eventos abertos NASA EONET (Entities + Observations; earthquakes excluídos; cache 4 min; gzip)
     api/space/weather/xray/
       route.ts          # API interna: fluxo GOES 0.1–0.8 nm (6 h) + último evento oficial (cache 45 s)
   components/
     Workspace.tsx       # client: snapshots + saúde das fontes + PanelTarget (entity | domain); Topbar/Sidebar/Map/Panel/StatusBar
-    useSourceSync.ts    # polling controlado e genérico de uma rota interna (setTimeout recursivo)
+    useSourceSync.ts    # polling controlado e genérico de uma rota interna (setTimeout recursivo; URL dinâmica/null, estado escopado pela URL)
     layout/
       Topbar.tsx        # marca, busca (visual), indicador LIVE (inativo)
       Sidebar.tsx       # categorias (sem filtro; SPACE abre o painel de domínio) + fontes realmente carregadas
@@ -169,12 +171,15 @@ src/
       SolarWindSections.tsx # seções SOLAR WIND (plasma) e IMF do painel SPACE
       EonetEventPanel.tsx # painel de um evento natural EONET
       DisastersPanel.tsx # painel de domínio DISASTERS (resumo USGS + EONET)
+      WeatherPanel.tsx  # painel de domínio WEATHER: ponto, current (estimated), 24 h (forecast), atribuição
       XraySection.tsx   # seção SOLAR X-RAY do painel SPACE + gráfico log 6 h
       SeriesChart.tsx   # gráfico SVG genérico de série temporal (quebra em lacunas e troca de spacecraft)
       IssCamera.tsx     # seção CAMERA: player oficial da NASA (aberto ao selecionar a ISS, sem autoplay)
   lib/
     categories.ts       # lista de categorias + tipo CategoryId
     format.ts           # formatação: UTC, coordenadas, magnitude, profundidade, tempo relativo
+    sync-state.ts       # transições puras do estado de sync, escopadas pela query (A nunca aparece para B)
+    weather-codes.ts    # tabela oficial WMO da Open-Meteo
     eonet-map.ts        # features do mapa EONET (só a geometria mais recente; anéis desdobrados no antimeridiano)
     xray.ts             # limiares de classe A/B/C/M/X (referência), posição log10, notação científica
     solar-wind.ts       # bzOrientation(): SOUTHWARD/NORTHWARD/ZERO (orientação física, não alerta)
@@ -182,11 +187,14 @@ src/
     aurora-grid.ts      # grade OVATION → array 360 × 181 de valores (textura; valores inalterados)
     iss-trail.ts        # trilha recente da ISS: histórico limitado em memória + segmentação (lacunas, antimeridiano)
     iss-interpolation.ts # suavização visual do marcador: interpolação entre posições recebidas (sem extrapolação)
-    source-health.ts    # USGS_SYNC / ISS_SYNC / NOAA_KP_SYNC / NOAA_OVATION_SYNC / NOAA_RTSW_SYNC / NOAA_XRAY_SYNC / NASA_EONET_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
+    source-health.ts    # USGS_SYNC / ISS_SYNC / NOAA_KP_SYNC / NOAA_OVATION_SYNC / NOAA_RTSW_SYNC / NOAA_XRAY_SYNC / NASA_EONET_SYNC / OPEN_METEO_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
     map-config.ts       # URL do basemap, view inicial, URL do worker
     sources/usgs/
       earthquakes.ts    # adapter USGS (server): fetch, validação, normalização
       source.ts         # IntelligenceSource USGS (dados estáticos, importável no cliente)
+    sources/open-meteo/
+      forecast.ts       # adapter Open-Meteo (server): unidades conferidas, current estimated, hourly forecast
+      source.ts         # IntelligenceSource Open-Meteo, URLs de licença, validação de coordenada
     sources/nasa/
       iss-media.ts      # NASA_ISS_STREAM: mídia oficial associada à ISS (config, sem API)
       eonet.ts          # adapter NASA EONET v3 (server): validação, exclusão de earthquakes, geometria mais recente por data
@@ -212,6 +220,7 @@ src/
     space.ts            # IssObservationData, IssFeed (resposta da API)
     space-weather.ts    # PlanetaryKpObservationData, PlanetaryKpFeed (sem entities)
     aurora.ts           # AuroraForecastData, AuroraGridCell, AuroraForecastFeed (sem entities)
+    weather.ts          # WeatherCurrentData, WeatherHourlyData, WeatherPointFeed (sem entities)
     eonet.ts            # EonetGeometry, EonetEventData, EonetFeed (Entities disaster:eonet:*)
     xray.ts             # GoesXrayFluxData, GoesXrayFlareData, GoesXrayFeed (sem entities)
     solar-wind.ts       # SolarWindPlasmaData, InterplanetaryMagneticFieldData, RtswFeed (sem entities)
@@ -624,6 +633,24 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **Performance**: 7 202 pontos numa única source; montar o GeoJSON ≈ 1 ms; sem componente React por evento. Visualmente denso em regiões com muitos incêndios (América do Norte).
 - Não implementado: filtros por categoria, clustering, busca, time slider, eventos fechados, alertas/notificações, Worldview/imagery, EONET Layers/WMS/WMTS, trilhas de tempestade/iceberg, score de severidade, deduplicação entre fontes, relações, integração com WEATHER.
 
+### WEATHER — Open-Meteo, inspeção de ponto (Etapa 8A)
+
+- **Fonte**: Open-Meteo **Weather Forecast API** `https://api.open-meteo.com/v1/forecast` (docs `https://open-meteo.com/en/docs`). Uso gratuito **não comercial** sem API key (limites: < 10 000 chamadas/dia, 5 000/h, 600/min). **Licença**: dados sob **CC BY 4.0**; a Open-Meteo exige um link junto de onde os dados aparecem ("Weather data by Open-Meteo.com" → `https://open-meteo.com/`), link para a licença e indicar mudanças — o WeatherPanel mostra "Weather data by Open-Meteo.com · CC BY 4.0 · licence" e "Values as received; layout and 24 h sum by AURELIS". IntelligenceSource `open-meteo-weather` ("Open-Meteo — Weather Forecast", provider Open-Meteo, category `open-data`, reliability `unknown`).
+- **Modelo**: **Best Match** (sem parâmetro `models`; a doc: "provides the best forecast for any given location worldwide", combinando modelos de serviços meteorológicos nacionais). A resposta **não informa** qual modelo upstream foi usado → painel: "OPEN-METEO BEST MATCH" + "The specific upstream model is not reported in the response." Nenhum modelo é presumido.
+- **Fonte query-scoped / on demand**: não há camada global. Clicar **WEATHER** abre o WeatherPanel ("Select a point on the map"); com o painel aberto o cursor vira crosshair e um clique em área **sem feature selecionável** escolhe um ponto (arrastar/zoom não disparam `click`; terremoto, EONET e ISS continuam tendo prioridade). Longitude normalizada para −180..180 (`LngLat.wrap`) e coordenada arredondada a 5 casas (~1 m). Ponto = **marcador dourado** (anel), não Entity, não Observation, não dataset layer (fora de `MapLayerVisibility`), sem clique; visível só com o WeatherPanel aberto. Último ponto e snapshot ficam em estado de sessão (voltar a WEATHER restaura); reload zera; sem localStorage.
+- **Requisição** (`/api/weather/forecast?lat=&lon=` → servidor → Open-Meteo; o navegador nunca chama a Open-Meteo): `current` = temperature_2m, apparent_temperature, relative_humidity_2m, cloud_cover, precipitation, weather_code, pressure_msl, wind_speed_10m, wind_direction_10m, wind_gusts_10m; `hourly` = temperature_2m, cloud_cover, precipitation_probability, precipitation, weather_code, wind_speed_10m; `forecast_hours=24`; `timezone=UTC`. lat/lon validados (finitos, −90..90 / −180..180; senão 400).
+- **Unidades** (padrões da API, conferidas em cada resposta via `current_units`/`hourly_units`; unidade diferente → erro, nunca rótulo errado): °C, %, mm, hPa, km/h, ° (direção), "wmo code".
+- **Tempo**: com `timezone=UTC` a API devolve horários locais sem offset para esse fuso e declara `utc_offset_seconds` (exigido 0) → lidos como UTC; o painel indica UTC.
+- **Semântica**: `current` = dados de modelo de 15 min (doc: "Current conditions are based on 15-minutely weather model data") → **nature `estimated`**, `validAt` = `current.time`, nota no painel "Current conditions are model-derived, not a direct station observation." Horas futuras → **nature `forecast`**, `validAt` = a hora; a hora corrente (já iniciada, ≤ `current.time`) também é `estimated`. **Nunca `observed`**; sem `observedAt`/`reportedAt`; `ingestedAt` do servidor. **Sem Entity** (ENTITIES não muda).
+- **Coordenadas**: `requestedLocation` = ponto clicado (preservado); `gridCell` = `latitude`/`longitude`/`elevation` da resposta — a doc define como "WGS84 of the center of the weather grid-cell which was used to generate this forecast" (pode estar a alguns km) e elevation = DEM de 90 m usado no downscaling. As Observations usam o centro da célula com precisão **`approximate`**. Nenhuma substitui a outra.
+- **Tipos** (`src/types/weather.ts`): `WeatherCurrentData` (temperatureC, apparentTemperatureC, relativeHumidityPercent, cloudCoverPercent, precipitationMm, weatherCode, pressureMslHpa, windSpeedKmh, windDirectionDegrees, windGustsKmh, intervalSeconds) e `WeatherHourlyData`; null/NaN ficam indefinidos, nunca 0. **WMO weather code**: só a tabela oficial da Open-Meteo (`src/lib/weather-codes.ts`); código fora da tabela → sem rótulo (descartado); o código bruto aparece junto do rótulo.
+- **Painel** (WeatherPanel): REQUESTED POINT + centro da célula/elevação; CURRENT CONDITIONS [ESTIMATED] (temperatura, condição WMO, sensação, umidade, nuvens, precipitação, vento + direção, rajadas, pressão MSL, VALID AT UTC + intervalo de 15 min); NEXT 24 HOURS [FORECAST] com dois gráficos SVG (`SeriesChart`, generalizado com `maxGapMs`, segunda série tracejada, domínio X explícito, `markLatest` e `tickEveryHours`): temperatura °C e nuvens % + probabilidade de precipitação % (0–100); PRECIP. (24 H) = soma das quantidades horárias (indicada como cálculo do AURELIS); PROVENANCE; atribuição. Sem vento no mapa, sem setas, sem partículas.
+- **Troca de ponto**: o estado de sync é **escopado pela URL/query** (`src/lib/sync-state.ts`; `useSourceSync` aceita URL dinâmica ou `null`): ponto B começa vazio (carregando) — o snapshot de A **nunca** é mostrado para B, nem se B falhar ("WEATHER SOURCE UNAVAILABLE for this point. No data from another point is shown."). Falha de refresh do **mesmo** ponto mantém o snapshot e vira STALE pelas regras normais.
+- **Polling/cache/freshness**: `OPEN_METEO_SYNC` = poll **10 min** enquanto houver ponto; freshness **30 min** = idade do último snapshot AURELIS daquele ponto, **não** a idade do run do modelo (política AURELIS, não SLA). **Sem cache no servidor**: as coordenadas são arbitrárias e um cache em memória por ponto cresceria sem limite; um ponto a cada 10 min é volume baixo.
+- **SOURCES / saúde**: sem ponto, a Open-Meteo **não aparece** (nem na sidebar, nem na agregação, nem em SOURCES; nada de UNAVAILABLE falso). Com ponto, entra na infraestrutura normal (SOURCES 8 → 9 com snapshot válido; contagem genérica). Reload sem ponto → não conta.
+- **Desempenho**: resposta upstream ~2 KB em ~1 s; normalizada ~22 KB (cada Observation guarda o próprio `sourceUrl`); 24 valores horários.
+- Não implementado: camadas meteorológicas globais (raster, nuvens, precipitação, radar, imagens), vento no mapa, isóbaras, heatmap, alertas, geolocalização, geocodificação, busca, locais salvos, 7 dias, lua, nascer/pôr do sol, score de astrofoto, UV, qualidade do ar.
+
 ### Dívida técnica
 
 - **Saúde da fonte** (*Future source health should model explicit states such as fresh, stale and unavailable instead of source-specific cache heuristics.*): **parcialmente resolvida na 4D** no cliente (`SourceHealth`). O servidor ainda usa a heurística de idade de 120 s específica da rota de terremotos; generalizar quando houver a segunda fonte.
@@ -656,6 +683,7 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **ISS (Where The ISS At?)**: primeira Entity móvel, posição a cada 5 s, painel próprio e saúde da fonte independente; estado global agregado (LIVE/PARTIAL/…).
 - **Primeira fonte operacional: USGS Earthquakes M2.5+ / 24 h**, normalizada no servidor (`/api/earthquakes`) e exibida como círculos em ciano no mapa, **sincronizada a cada 60 s** com saúde da fonte (syncing/fresh/stale/unavailable) e indicador LIVE real.
 - **Space Weather (NOAA SWPC Planetary Kp)**: terceira fonte, Kp estimado atual + tendência de 6 h no painel de domínio SPACE (clique em SPACE na sidebar); sem Entity e sem mapa.
+- **WEATHER / Open-Meteo**: inspeção de ponto (clique no mapa com o WeatherPanel aberto): condições atuais modeladas (estimated) + 24 h (forecast) com dois gráficos, Best Match, atribuição CC BY 4.0; fonte on demand, sem Entity, sem camada global.
 - **DISASTERS / NASA EONET**: oitava fonte; eventos naturais abertos no EONET (exceto earthquakes, que vêm do USGS) como Entities no mapa (ponto anel ou polígono), EonetEventPanel e DisastersPanel (clique em DISASTERS).
 - **Raios X solares (NOAA SWPC GOES, primary)**: sétima fonte, fluxo 0.1–0.8 nm atual (observed) + gráfico log de 6 h com bandas A–X e último evento de flare oficial (reported); sem Entity e sem mapa.
 - **Vento solar e IMF (NOAA SWPC RTSW)**: quinta e sexta fontes, medições in situ (observed) do spacecraft ativo: velocidade, densidade, temperatura, IMF Bz (SOUTHWARD/NORTHWARD) e Bt, com gráficos de 6 h no painel SPACE; sem Entity e sem mapa.
@@ -666,7 +694,7 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 ## Ainda NÃO implementado (deliberadamente)
 
 - Outras fontes (cyber, aviação, marítimo, incêndios, clima…). Outros feeds USGS (All, M1+, M4.5+, Significant) e escolha de magnitude.
-- WebSocket/SSE (hoje: polling de 60 s para USGS, NOAA Kp, RTSW e GOES X-ray, 5 min para OVATION e NASA EONET, 5 s para a ISS). Notificações de eventos novos.
+- WebSocket/SSE (hoje: polling de 60 s para USGS, NOAA Kp, RTSW e GOES X-ray, 5 min para OVATION e NASA EONET, 10 min para o ponto de clima Open-Meteo, 5 s para a ISS). Notificações de eventos novos.
 - Persistência e histórico de observações; reconciliação de Entity IDs por `ids` do USGS.
 - Clustering, popup, tooltip; endpoint Detail do USGS.
 - Outras fontes SPACE (Hubble, Tiangong, CelesTrak…), satellite.js, órbita, ground track, footprint visual, outras câmeras/streams (a única mídia é o stream oficial da NASA da ISS). Clima espacial além do Kp estimado e do forecast OVATION mais recente e do vento solar/IMF RTSW (forecast de Kp, alertas NOAA e escalas R/S/G, notificações, prótons/partículas, SUVI, fallback secondary do GOES, propagação/ETA do vento solar, Geospace, viewline, CME, GOES, timeline de aurora). CONTEXT / EVENTS (observâncias, eventos da semana, calendário astronômico).
@@ -723,3 +751,4 @@ npm start
 2026-10-06 16:40 | Workspace, map/{eonet-layer,WorldMap,MapView}.tsx, panel/{DisastersPanel,EonetEventPanel}.tsx | Ajuste 7A: layers EONET opcionais e ocultas por padrão (eonetVisible, sessão, não persistido); SHOW EONET ON MAP / HIDE EONET no DisastersPanel (HIDE também no EonetEventPanel); esconder com evento EONET selecionado volta ao DisastersPanel. Sincronização, SourceHealth, SOURCES e ENTITIES independentes da visibilidade; sem filtro por idade.
 2026-10-06 17:05 | lib/map-layers.ts, Workspace, map/{earthquake-layer,WorldMap,MapView}.tsx, panel/{DisastersPanel,EarthquakePanel}.tsx | Etapa 7A.1: visibilidade de layers centralizada em MapLayerVisibility (earthquakes visível, eonet oculta, aurora oculta — Aurora migrada sem mudar UX); DisastersPanel com toggle por dataset + HIDE ALL/SHOW DEFAULT; esconder layer com entidade selecionada volta ao DisastersPanel; visibilidade não afeta sync, health, snapshots, entities, observations, SOURCES nem ENTITIES; merge funcional do estado.
 2026-10-06 17:40 | lib/eonet-filters.ts, Workspace, map/{WorldMap,MapView}.tsx, panel/DisastersPanel.tsx | Etapa 7B: filtros de visualização EONET (recência pela data da geometria mais recente: 7D/30D/90D/ALL OPEN, default 30D; categoria dinâmica do snapshot, multi-categoria por qualquer id; AND), separados de MapLayerVisibility; DisastersPanel com MAP VIEW N OF TOTAL, chips e RESET FILTERS; mapa recebe só a coleção filtrada; seleção liberada se o evento sair da vista. API/ingestão inalteradas; OPEN IN EONET ≠ recência.
+2026-10-06 18:10 | lib/sources/open-meteo, app/api/weather/forecast, types/weather.ts, lib/{weather-codes,sync-state,source-health}.ts, components/useSourceSync.ts, map/{weather-point-layer,WorldMap,MapView}.tsx, Workspace, layout/Sidebar, panel/{WeatherPanel,SeriesChart}.tsx | Etapa 8A: domínio WEATHER com inspeção de ponto Open-Meteo (Best Match, modelo upstream não exposto), CC BY 4.0 com atribuição no painel; current = estimated (validAt), horas futuras = forecast; sem Entity; requestedLocation vs gridCell (centro da célula); unidades conferidas; WMO só pela tabela oficial; useSourceSync com URL dinâmica e estado escopado pela query (ponto A nunca aparece para B); poll 10 min, freshness 30 min, sem cache no servidor; fonte on demand fora de SOURCES até haver ponto. Sem camada meteorológica global.

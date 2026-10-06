@@ -29,6 +29,7 @@ import {
   setSelectedEonet,
 } from "./eonet-layer";
 import { addAuroraLayer, setAuroraCells, setAuroraVisible } from "./aurora-layer";
+import { addWeatherPointLayer, setWeatherPoint } from "./weather-point-layer";
 import {
   EARTHQUAKES_LAYER_ID,
   addEarthquakeLayer,
@@ -72,6 +73,9 @@ export default function WorldMap({
   onBasemapError,
   selectedEntityId,
   onSelectEntity,
+  weatherMode,
+  weatherPoint,
+  onPickWeatherPoint,
 }: {
   earthquakes: EarthquakeFeed | null;
   /** NASA EONET events in the current view (already filtered; latest geometry drawn). */
@@ -91,17 +95,26 @@ export default function WorldMap({
   onBasemapError: () => void;
   selectedEntityId: string | null;
   onSelectEntity: (entityId: string) => void;
+  /** WEATHER panel open: empty-map clicks pick a point to inspect. */
+  weatherMode: boolean;
+  /** Point being inspected (drawn only in weather mode). */
+  weatherPoint: { latitude: number; longitude: number } | null;
+  onPickWeatherPoint: (point: { latitude: number; longitude: number }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const onSelectRef = useRef(onSelectEntity);
+  const weatherModeRef = useRef(weatherMode);
+  const onPickRef = useRef(onPickWeatherPoint);
   const projectionRef = useRef(projection);
   const onBasemapErrorRef = useRef(onBasemapError);
   const [styleReady, setStyleReady] = useState(false);
 
   useEffect(() => {
     onSelectRef.current = onSelectEntity;
-  }, [onSelectEntity]);
+    weatherModeRef.current = weatherMode;
+    onPickRef.current = onPickWeatherPoint;
+  }, [onSelectEntity, weatherMode, onPickWeatherPoint]);
 
   useEffect(() => {
     onBasemapErrorRef.current = onBasemapError;
@@ -151,18 +164,26 @@ export default function WorldMap({
       addIssLayer(map);
       addAuroraLayer(map);
       addEonetLayer(map);
+      addWeatherPointLayer(map);
 
-      // One handler for all data layers: the top-most feature wins.
+      // One handler for all data layers: the top-most feature wins. Entities
+      // always take priority; only a click on no selectable feature picks a
+      // weather point (MapLibre does not fire "click" after a drag or zoom).
       map.on("click", (event) => {
         const [feature] = map.queryRenderedFeatures(event.point, {
           layers: INTERACTIVE_LAYERS,
         });
         const entityId = feature?.properties?.entityId;
         if (typeof entityId === "string") onSelectRef.current(entityId);
+        else if (weatherModeRef.current) {
+          // Longitude wrapped to −180..180 (same position on the globe).
+          const { lat, lng } = event.lngLat.wrap();
+          onPickRef.current({ latitude: lat, longitude: lng });
+        }
       });
       map.on("mousemove", (event) => {
         const hit = map.queryRenderedFeatures(event.point, { layers: INTERACTIVE_LAYERS });
-        map.getCanvas().style.cursor = hit.length > 0 ? "pointer" : "";
+        map.getCanvas().style.cursor = hit.length > 0 ? "pointer" : weatherModeRef.current ? "crosshair" : "";
       });
 
       setStyleReady(true);
@@ -211,6 +232,13 @@ export default function WorldMap({
       setEarthquakeData(mapRef.current, earthquakes);
     }
   }, [styleReady, earthquakes]);
+
+  useEffect(() => {
+    if (!styleReady || !mapRef.current) return;
+    setWeatherPoint(mapRef.current, weatherMode ? weatherPoint : null);
+    // Crosshair also without moving the mouse after entering/leaving weather mode.
+    mapRef.current.getCanvas().style.cursor = weatherMode ? "crosshair" : "";
+  }, [styleReady, weatherMode, weatherPoint]);
 
   useEffect(() => {
     if (styleReady && mapRef.current) {

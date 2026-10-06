@@ -33,6 +33,9 @@ export default function MapView({
   issPositions,
   selectedEntityId,
   onSelectEntity,
+  weatherMode,
+  weatherPoint,
+  onPickWeatherPoint,
 }: {
   earthquakes: EarthquakeFeed | null;
   eonetEvents: EonetEventObservation[];
@@ -43,6 +46,9 @@ export default function MapView({
   issPositions: TrailPoint[];
   selectedEntityId: string | null;
   onSelectEntity: (entityId: string) => void;
+  weatherMode: boolean;
+  weatherPoint: { latitude: number; longitude: number } | null;
+  onPickWeatherPoint: (point: { latitude: number; longitude: number }) => void;
 }) {
   // Two independent session states (not persisted): projection and basemap.
   const [projection, setProjection] = useState<ProjectionMode>(DEFAULT_PROJECTION);
@@ -78,6 +84,9 @@ export default function MapView({
         onBasemapError={onBasemapError}
         selectedEntityId={selectedEntityId}
         onSelectEntity={onSelectEntity}
+        weatherMode={weatherMode}
+        weatherPoint={weatherPoint}
+        onPickWeatherPoint={onPickWeatherPoint}
       />
       <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-end gap-2">
         <SegmentedControl

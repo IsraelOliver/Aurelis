@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AuroraForecastFeed,
   EarthquakeFeed,
+  WeatherPointFeed,
   EonetFeed,
   GoesXrayFeed,
   InterplanetaryMagneticFieldFeed,
@@ -19,6 +20,7 @@ import {
   NOAA_OVATION_SYNC,
   NOAA_RTSW_SYNC,
   NOAA_XRAY_SYNC,
+  OPEN_METEO_SYNC,
   USGS_SYNC,
   aggregateHealth,
   deriveHealth,
@@ -27,6 +29,7 @@ import {
 import { USGS_EARTHQUAKES_SOURCE } from "@/lib/sources/usgs/source";
 import { ISS_ENTITY_ID, WTIA_ISS_SOURCE } from "@/lib/sources/wtia/source";
 import { EONET_ENTITY_PREFIX, NASA_EONET_SOURCE } from "@/lib/sources/nasa/eonet-source";
+import { OPEN_METEO_SOURCE } from "@/lib/sources/open-meteo/source";
 import {
   NOAA_SWPC_KP_SOURCE,
   NOAA_SWPC_OVATION_SOURCE,
@@ -50,6 +53,7 @@ import MapView from "@/components/map/MapView";
 import EarthquakePanel from "@/components/panel/EarthquakePanel";
 import EonetEventPanel from "@/components/panel/EonetEventPanel";
 import DisastersPanel from "@/components/panel/DisastersPanel";
+import WeatherPanel from "@/components/panel/WeatherPanel";
 import IssPanel from "@/components/panel/IssPanel";
 import SpaceWeatherPanel from "@/components/panel/SpaceWeatherPanel";
 import { useSourceSync, type SourceSync } from "./useSourceSync";
@@ -99,7 +103,11 @@ export type PanelTarget =
   | { type: "domain"; domain: DomainId };
 
 /** Sidebar domains that open a domain panel. */
-export type DomainId = "space" | "disasters";
+export type DomainId = "space" | "disasters" | "weather";
+
+/** Weather query point: clicked coordinate rounded to 5 decimals (~1 m), longitude wrapped. */
+type WeatherPoint = { latitude: number; longitude: number };
+const round5 = (v: number) => Math.round(v * 1e5) / 1e5;
 
 /** Clears an entity target when that entity left its source; domain targets are kept. */
 const pruneEntity =
@@ -237,6 +245,19 @@ export default function Workspace() {
   const toggleLayer = (id: MapLayerId) => setLayers({ [id]: !layerVisibility[id] });
   const now = useNow(1000);
 
+  // WEATHER (Open-Meteo, query-scoped): the point chosen on the map; session state only.
+  // No point = no query, no polling, and the source is not listed or counted.
+  const [weatherPoint, setWeatherPoint] = useState<WeatherPoint | null>(null);
+  const pickWeatherPoint = useCallback((p: WeatherPoint) => {
+    setWeatherPoint({ latitude: round5(p.latitude), longitude: round5(p.longitude) });
+  }, []);
+  const weather = useSourceSync<WeatherPointFeed>(
+    weatherPoint ? `/api/weather/forecast?lat=${weatherPoint.latitude}&lon=${weatherPoint.longitude}` : null,
+    OPEN_METEO_SYNC.pollIntervalMs,
+    "Open-Meteo",
+    noop,
+  );
+
   // EONET view filters: which ingested events the EONET layer draws (visualization
   // only; separate from layer visibility; session state, not persisted).
   const [eonetFilters, setEonetFilters] = useState<EonetViewFilters>(DEFAULT_EONET_FILTERS);
@@ -270,6 +291,7 @@ export default function Workspace() {
   const magState = toSyncState(NOAA_SWPC_RTSW_MAG_SOURCE.id, mag, NOAA_RTSW_SYNC, now);
   const xrayState = toSyncState(NOAA_SWPC_GOES_XRAY_SOURCE.id, xray, NOAA_XRAY_SYNC, now);
   const eonetState = toSyncState(NASA_EONET_SOURCE.id, eonet, NASA_EONET_SYNC, now);
+  const weatherState = toSyncState(OPEN_METEO_SOURCE.id, weather, OPEN_METEO_SYNC, now);
 
   const sources = [
     { id: USGS_EARTHQUAKES_SOURCE.id, name: USGS_EARTHQUAKES_SOURCE.name, state: usgsState, snapshot: usgs.snapshot },
@@ -280,6 +302,10 @@ export default function Workspace() {
     { id: NOAA_SWPC_RTSW_MAG_SOURCE.id, name: NOAA_SWPC_RTSW_MAG_SOURCE.name, state: magState, snapshot: mag.snapshot },
     { id: NOAA_SWPC_GOES_XRAY_SOURCE.id, name: NOAA_SWPC_GOES_XRAY_SOURCE.name, state: xrayState, snapshot: xray.snapshot },
     { id: NASA_EONET_SOURCE.id, name: NASA_EONET_SOURCE.name, state: eonetState, snapshot: eonet.snapshot },
+    // On-demand: only while a weather point exists (no false UNAVAILABLE before any query).
+    ...(weatherPoint
+      ? [{ id: OPEN_METEO_SOURCE.id, name: OPEN_METEO_SOURCE.name, state: weatherState, snapshot: weather.snapshot }]
+      : []),
   ];
   // Same aggregation for every source; no special rules.
   const globalHealth = aggregateHealth(sources.map((s) => s.state.health));
@@ -300,7 +326,17 @@ export default function Workspace() {
   // At most one panel: a domain view, or the selected entity (which belongs to exactly one source).
   let panel: React.ReactNode = null;
   const close = () => setPanelTarget(null);
-  if (panelTarget?.type === "domain" && panelTarget.domain === "disasters") {
+  if (panelTarget?.type === "domain" && panelTarget.domain === "weather") {
+    panel = (
+      <WeatherPanel
+        point={weatherPoint}
+        feed={weather.snapshot}
+        health={weatherState.health}
+        failed={weather.lastAttemptFailed}
+        onClose={close}
+      />
+    );
+  } else if (panelTarget?.type === "domain" && panelTarget.domain === "disasters") {
     panel = (
       <DisastersPanel
         earthquakes={usgs.snapshot}
@@ -409,6 +445,9 @@ export default function Workspace() {
             issPositions={issTrail}
             selectedEntityId={panel ? selectedEntityId : null}
             onSelectEntity={selectEntity}
+            weatherMode={panelTarget?.type === "domain" && panelTarget.domain === "weather"}
+            weatherPoint={weatherPoint}
+            onPickWeatherPoint={pickWeatherPoint}
           />
         </main>
         {panel}

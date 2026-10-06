@@ -111,6 +111,8 @@ Dados globais sem localização (ex.: Kp planetário NOAA SWPC, Etapa 6A) **não
 
 **Visibilidade (Etapa 7A.1)**: DATA AVAILABILITY ≠ MAP VISIBILITY. `MapLayerVisibility` (`src/lib/map-layers.ts`: `earthquakes` visível, `eonet` oculta, `aurora` oculta por padrão; sessão, sem persistência) chega ao `WorldMap` como `layerVisibility` e só liga/desliga `visibility` das layers (oculta = não desenha nem recebe clique). Fetch, polling, SourceHealth, snapshots e contagens não dependem dela. **Filtros EONET (Etapa 7B)** são outro conceito: `EonetViewFilters` (recência pela data da geometria mais recente, default 30D; categoria, default ALL) decidem **quais** eventos a layer EONET recebe — o `WorldMap` recebe `eonetEvents` já filtrados (um `setData`), sem hit target para os filtrados; visibilidade decide **se** a layer é desenhada.
 
+**Ponto de clima (Etapa 8A)**: `aurelis-weather-point-source` / `aurelis-weather-point-layer` (circle, anel dourado) marca só a coordenada inspecionada no WeatherPanel; não é dataset layer (fora de `MapLayerVisibility`), não é Entity, não é clicável e só aparece com o WeatherPanel aberto. Com o painel aberto, um clique sem feature selecionável escolhe o ponto (features operacionais têm prioridade); cursor crosshair. Nenhuma camada meteorológica global existe ainda. Código: `src/components/map/weather-point-layer.ts`.
+
 Regras para todas as camadas de dados:
 
 - são sources/layers MapLibre separadas, adicionadas sobre o basemap em runtime (após o evento `load`), **nunca** dentro de `aurelis-dark.json`;
