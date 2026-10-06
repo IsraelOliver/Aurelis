@@ -75,7 +75,7 @@ export default function MapView({
         selectedEntityId={selectedEntityId}
         onSelectEntity={onSelectEntity}
       />
-      <div className="absolute left-3 top-3 z-10 flex flex-wrap gap-2">
+      <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-end gap-2">
         <SegmentedControl
           label="Map projection"
           value={projection}
