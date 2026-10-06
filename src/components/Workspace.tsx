@@ -36,6 +36,13 @@ import {
 } from "@/lib/sources/noaa/source";
 import { appendTrailPoint, trailToSegments, type TrailPoint } from "@/lib/iss-trail";
 import { DEFAULT_LAYER_VISIBILITY, type MapLayerId, type MapLayerVisibility } from "@/lib/map-layers";
+import {
+  DEFAULT_EONET_FILTERS,
+  eonetCategories,
+  filterEonet,
+  selectionHiddenByFilters,
+  type EonetViewFilters,
+} from "@/lib/eonet-filters";
 import Topbar from "@/components/layout/Topbar";
 import Sidebar from "@/components/layout/Sidebar";
 import StatusBar from "@/components/layout/StatusBar";
@@ -230,6 +237,31 @@ export default function Workspace() {
   const toggleLayer = (id: MapLayerId) => setLayers({ [id]: !layerVisibility[id] });
   const now = useNow(1000);
 
+  // EONET view filters: which ingested events the EONET layer draws (visualization
+  // only; separate from layer visibility; session state, not persisted).
+  const [eonetFilters, setEonetFilters] = useState<EonetViewFilters>(DEFAULT_EONET_FILTERS);
+  // Reference time for the recency window, refreshed hourly (day-scale windows; avoids
+  // re-filtering and re-drawing every second).
+  const filterReferenceMs = Math.floor(now / 3_600_000) * 3_600_000;
+  const eonetSnapshot = eonet.snapshot;
+  const eonetInView = useMemo(
+    () => (eonetSnapshot ? filterEonet(eonetSnapshot.observations, eonetFilters, filterReferenceMs) : []),
+    [eonetSnapshot, eonetFilters, filterReferenceMs],
+  );
+  const eonetViewIds = useMemo(
+    () => new Set(eonetInView.flatMap((o) => (o.entityId ? [o.entityId] : []))),
+    [eonetInView],
+  );
+  const eonetCategoryList = useMemo(
+    () => (eonetSnapshot ? eonetCategories(eonetSnapshot.observations) : []),
+    [eonetSnapshot],
+  );
+  // A selected EONET event that left the current view: back to the DISASTERS summary
+  // (state adjusted during render, guarded so it runs once).
+  if (eonetSnapshot && selectionHiddenByFilters(selectedEntityId, eonetViewIds, EONET_ENTITY_PREFIX)) {
+    setPanelTarget({ type: "domain", domain: "disasters" });
+  }
+
   const usgsState = toSyncState(USGS_EARTHQUAKES_SOURCE.id, usgs, USGS_SYNC, now);
   const issState = toSyncState(WTIA_ISS_SOURCE.id, iss, ISS_SYNC, now);
   const kpState = toSyncState(NOAA_SWPC_KP_SOURCE.id, kp, NOAA_KP_SYNC, now);
@@ -277,6 +309,10 @@ export default function Workspace() {
         eonetHealth={eonetState.health}
         layerVisibility={layerVisibility}
         onSetLayers={setLayers}
+        eonetFilters={eonetFilters}
+        onSetEonetFilters={setEonetFilters}
+        eonetInViewCount={eonetInView.length}
+        eonetCategories={eonetCategoryList}
         onClose={close}
       />
     );
@@ -365,7 +401,7 @@ export default function Workspace() {
         <main className="relative min-w-0 flex-1">
           <MapView
             earthquakes={usgs.snapshot}
-            eonet={eonet.snapshot}
+            eonetEvents={eonetInView}
             aurora={aurora.snapshot}
             layerVisibility={layerVisibility}
             iss={iss.snapshot}

@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
-import type { AuroraForecastFeed, EarthquakeFeed, EonetFeed, IssFeed } from "@/types";
+import type { AuroraForecastFeed, EarthquakeFeed, EonetEventObservation, IssFeed } from "@/types";
 import type { MapLayerVisibility } from "@/lib/map-layers";
 import type { TrailPoint } from "@/lib/iss-trail";
 import {
@@ -25,7 +25,7 @@ const WorldMap = dynamic(() => import("./WorldMap"), {
 
 export default function MapView({
   earthquakes,
-  eonet,
+  eonetEvents,
   aurora,
   layerVisibility,
   iss,
@@ -35,7 +35,7 @@ export default function MapView({
   onSelectEntity,
 }: {
   earthquakes: EarthquakeFeed | null;
-  eonet: EonetFeed | null;
+  eonetEvents: EonetEventObservation[];
   aurora: AuroraForecastFeed | null;
   layerVisibility: MapLayerVisibility;
   iss: IssFeed | null;
@@ -67,7 +67,7 @@ export default function MapView({
     >
       <WorldMap
         earthquakes={earthquakes}
-        eonet={eonet}
+        eonetEvents={eonetEvents}
         aurora={aurora}
         layerVisibility={layerVisibility}
         iss={iss}

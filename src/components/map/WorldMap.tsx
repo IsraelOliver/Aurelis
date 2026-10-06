@@ -19,7 +19,7 @@ import { IMAGERY_SOURCE_ID, addImageryLayer, applyBasemapMode } from "./basemap-
 import { ISS_ENTITY_ID } from "@/lib/sources/wtia/source";
 import { VISUAL_DELAY_MS, interpolatePosition } from "@/lib/iss-interpolation";
 import { orbitTrailStrips, type TrailPoint } from "@/lib/iss-trail";
-import type { AuroraForecastFeed, EarthquakeFeed, EonetFeed, IssFeed } from "@/types";
+import type { AuroraForecastFeed, EarthquakeFeed, EonetEventObservation, IssFeed } from "@/types";
 import type { MapLayerVisibility } from "@/lib/map-layers";
 import {
   EONET_INTERACTIVE_LAYERS,
@@ -61,7 +61,7 @@ const INTERACTIVE_LAYERS = [...ISS_INTERACTIVE_LAYERS, EARTHQUAKES_LAYER_ID, ...
  */
 export default function WorldMap({
   earthquakes,
-  eonet,
+  eonetEvents,
   aurora,
   layerVisibility,
   iss,
@@ -74,8 +74,8 @@ export default function WorldMap({
   onSelectEntity,
 }: {
   earthquakes: EarthquakeFeed | null;
-  /** NASA EONET open natural events (latest geometry drawn). */
-  eonet: EonetFeed | null;
+  /** NASA EONET events in the current view (already filtered; latest geometry drawn). */
+  eonetEvents: EonetEventObservation[];
   /** Latest OVATION forecast snapshot (kept while hidden). */
   aurora: AuroraForecastFeed | null;
   /** Which data layers are drawn (rendering/interaction only; data keeps syncing). */
@@ -213,10 +213,10 @@ export default function WorldMap({
   }, [styleReady, earthquakes]);
 
   useEffect(() => {
-    if (styleReady && mapRef.current && eonet) {
-      setEonetData(mapRef.current, eonet.observations);
+    if (styleReady && mapRef.current) {
+      setEonetData(mapRef.current, eonetEvents);
     }
-  }, [styleReady, eonet]);
+  }, [styleReady, eonetEvents]);
 
   const { earthquakes: earthquakesVisible, eonet: eonetVisible, aurora: auroraVisible } = layerVisibility;
   useEffect(() => {

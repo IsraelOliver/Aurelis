@@ -109,7 +109,7 @@ Implementada **só no style JSON**, com `minzoom`, filtros e `line-opacity` inte
 
 Dados globais sem localização (ex.: Kp planetário NOAA SWPC, Etapa 6A) **não** têm camada no mapa (diferente do forecast OVATION, que tem distribuição geográfica real): aparecem em painéis de domínio (SPACE → SpaceWeatherPanel). O mapa mostra apenas dados geográficos.
 
-**Visibilidade (Etapa 7A.1)**: DATA AVAILABILITY ≠ MAP VISIBILITY. `MapLayerVisibility` (`src/lib/map-layers.ts`: `earthquakes` visível, `eonet` oculta, `aurora` oculta por padrão; sessão, sem persistência) chega ao `WorldMap` como `layerVisibility` e só liga/desliga `visibility` das layers (oculta = não desenha nem recebe clique). Fetch, polling, SourceHealth, snapshots e contagens não dependem dela.
+**Visibilidade (Etapa 7A.1)**: DATA AVAILABILITY ≠ MAP VISIBILITY. `MapLayerVisibility` (`src/lib/map-layers.ts`: `earthquakes` visível, `eonet` oculta, `aurora` oculta por padrão; sessão, sem persistência) chega ao `WorldMap` como `layerVisibility` e só liga/desliga `visibility` das layers (oculta = não desenha nem recebe clique). Fetch, polling, SourceHealth, snapshots e contagens não dependem dela. **Filtros EONET (Etapa 7B)** são outro conceito: `EonetViewFilters` (recência pela data da geometria mais recente, default 30D; categoria, default ALL) decidem **quais** eventos a layer EONET recebe — o `WorldMap` recebe `eonetEvents` já filtrados (um `setData`), sem hit target para os filtrados; visibilidade decide **se** a layer é desenhada.
 
 Regras para todas as camadas de dados:
 
