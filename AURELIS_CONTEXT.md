@@ -103,7 +103,7 @@ Próximos passos planejados:
 - Modelo de domínio (Entity, Observation, Source, GeoLocation, Relationship) com proveniência.
 - **USGS Earthquakes** (M2.5+, 24 h) com Intelligence Panel.
 - **SPACE**: a **ISS** (NORAD 25544, Entity `space:norad:25544`) é a primeira Entity móvel, com posição atualizada periodicamente (~5 s) e painel próprio.
-- **SPACE WEATHER**: índice planetário **Kp estimado** da NOAA SWPC (terceira fonte), dado global sem Entity e sem mapa, no painel de domínio SPACE.
+- **SPACE WEATHER**: índice planetário **Kp estimado** da NOAA SWPC (terceira fonte), dado global sem Entity e sem mapa, no painel de domínio SPACE; **forecast de aurora OVATION** da NOAA SWPC (quarta fonte), campo modelado em grade de 1°, sem Entity, com layer opcional no mapa.
 - Polling controlado por fonte; `SourceHealth` por fonte (SYNCING / FRESH / STALE / UNAVAILABLE) e estado global multi-source (LIVE / PARTIAL / …).
 
 ## Stack atual
@@ -134,6 +134,8 @@ src/
       route.ts          # API interna: posição da ISS no modelo AURELIS (dedupe 4 s)
     api/space/weather/kp/
       route.ts          # API interna: Kp planetário NOAA SWPC no modelo AURELIS (cache 45 s)
+    api/space/weather/aurora/
+      route.ts          # API interna: forecast OVATION no modelo AURELIS, só células não-zero (cache 4 min)
   components/
     Workspace.tsx       # client: snapshots + saúde das fontes + PanelTarget (entity | domain); Topbar/Sidebar/Map/Panel/StatusBar
     useSourceSync.ts    # polling controlado e genérico de uma rota interna (setTimeout recursivo)
@@ -149,19 +151,21 @@ src/
       WorldMap.tsx      # instancia o MapLibre (somente no browser)
       earthquake-layer.ts # domínio → GeoJSON source + circle layer + layer de seleção
       iss-layer.ts      # domínio → source/layers da ISS (halo + núcleo + rótulo)
+      aurora-layer.ts   # forecast OVATION → custom layer WebGL (textura da grade, interpolação visual, elevação visual no globo; opcional)
     panel/
       primitives.tsx    # moldura e peças comuns do Intelligence Panel
       EarthquakePanel.tsx # painel do terremoto selecionado
       IssPanel.tsx      # painel da ISS selecionada
-      SpaceWeatherPanel.tsx # painel de domínio SPACE: Kp estimado NOAA SWPC (sem Entity)
+      SpaceWeatherPanel.tsx # painel de domínio SPACE: Kp estimado + forecast de aurora OVATION (sem Entity)
       KpTrendChart.tsx  # gráfico SVG das últimas 6 h de Kp estimado
       IssCamera.tsx     # seção CAMERA: player oficial da NASA (aberto ao selecionar a ISS, sem autoplay)
   lib/
     categories.ts       # lista de categorias + tipo CategoryId
     format.ts           # formatação: UTC, coordenadas, magnitude, profundidade, tempo relativo
+    aurora-grid.ts      # grade OVATION → array 360 × 181 de valores (textura; valores inalterados)
     iss-trail.ts        # trilha recente da ISS: histórico limitado em memória + segmentação (lacunas, antimeridiano)
     iss-interpolation.ts # suavização visual do marcador: interpolação entre posições recebidas (sem extrapolação)
-    source-health.ts    # USGS_SYNC / ISS_SYNC / NOAA_KP_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
+    source-health.ts    # USGS_SYNC / ISS_SYNC / NOAA_KP_SYNC / NOAA_OVATION_SYNC (intervalo + janela), deriveHealth(), aggregateHealth()
     map-config.ts       # URL do basemap, view inicial, URL do worker
     sources/usgs/
       earthquakes.ts    # adapter USGS (server): fetch, validação, normalização
@@ -170,7 +174,8 @@ src/
       iss-media.ts      # NASA_ISS_STREAM: mídia oficial associada à ISS (config, sem API)
     sources/noaa/
       swpc-kp.ts        # adapter NOAA SWPC Kp (server): fetch, validação, normalização, janela 6 h
-      source.ts         # IntelligenceSource NOAA SWPC Kp + URL do produto
+      ovation.ts        # adapter NOAA SWPC OVATION (server): validação, longitude −180..180, células não-zero
+      source.ts         # IntelligenceSources NOAA SWPC Kp e OVATION + URLs dos produtos
     sources/wtia/
       iss.ts            # adapter Where The ISS At? (server): fetch, validação, normalização
       source.ts         # IntelligenceSource WTIA + ISS_ENTITY_ID
@@ -185,6 +190,7 @@ src/
     earthquake.ts       # EarthquakeObservationData, EarthquakeFeed (resposta da API)
     space.ts            # IssObservationData, IssFeed (resposta da API)
     space-weather.ts    # PlanetaryKpObservationData, PlanetaryKpFeed (sem entities)
+    aurora.ts           # AuroraForecastData, AuroraGridCell, AuroraForecastFeed (sem entities)
     index.ts            # barrel (export type *)
 public/
   map-styles/
@@ -509,6 +515,29 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **Gráfico** (`KpTrendChart.tsx`, SVG puro, sem biblioteca): Y 0→9 (grades 0/3/6/9), X tempo UTC com marcas a cada 2 h; linha ciano com segmentos retos só entre amostras consecutivas (lacuna > 3 min não é ligada); sem suavização nem amostras intermediárias; ponto mais recente em dourado. Linha tracejada de referência **G1 THRESHOLD · Kp 5** com a legenda "reference threshold from NOAA G scale; not an AURELIS alert". **Nenhum alerta G é exibido** a partir da estimativa; sem rótulos quiet/active/storm; sem cores de severidade.
 - Não implementado: forecast Kp, alertas/escalas NOAA, flares, prótons, vento solar, aurora/OVATION, CME, GOES, lua, outras fontes SPACE.
 
+### Quarta fonte: NOAA SWPC — OVATION Aurora (Etapa 6B)
+
+- **Fonte oficial**: NOAA SWPC "Aurora - 30 Minute Forecast" (`https://www.swpc.noaa.gov/products/aurora-30-minute-forecast`), JSON público `https://services.swpc.noaa.gov/json/ovation_aurora_latest.json` (sem autenticação, sem key). A página descreve o produto como *short-term forecast of the location and intensity of the aurora*, baseado no modelo **OVATION** (Prime), com lead time de **30 a 90 min** = tempo de trânsito do vento solar medido em **L1** até a Terra; quando o dado de vento solar falta, o modelo é dirigido pelo Kp e **não há lead time**.
+- **Formato verificado (2026-10-06)**: `{ "Observation Time": "…Z", "Forecast Time": "…Z", "Data Format": "[Longitude, Latitude, Aurora]", coordinates: [[lon, lat, aurora], …], type: "MultiPoint" }`; grade global de 1° (360 × 181 = 65 160 pontos), longitude 0..359, latitude −90..90, valores inteiros (0..26 no arquivo verificado). ~0,9 MB.
+- **Semântica do terceiro valor: NÃO confirmada.** A documentação só o nomeia "Aurora" e diz que uma estimativa de *viewing probability* **pode ser derivada** assumindo relação linear com a intensidade; isso não prova que o campo seja probabilidade, porcentagem ou unidade física. No AURELIS: **`auroraValue`**, painel "PEAK MODEL VALUE" com nota "unit and scale not documented". Sem máximo imposto (nenhum documentado); sem limiares interpretativos.
+- **IntelligenceSource** `noaa-swpc-ovation` ("NOAA SWPC — OVATION Aurora", provider NOAA SWPC, category `government`, reliability `unknown`). Mesmo provider do Kp, mas produto/feed independente: **SourceHealth própria**.
+- **Sem Entity** (nada de `aurora:north`, células como entidades etc.). Uma resposta OVATION = **um forecast snapshot** = **uma Observation** (`Observation<AuroraForecastData>`): id `noaa-swpc-ovation:<Forecast Time>`, **nature `forecast`** (novo `EvidenceNature`), confidence `unknown`, sem `entityId`, sem `location`, sem `reportedAt` (a fonte não dá horário de publicação), **`validAt` = Forecast Time**, `ingestedAt` do servidor, `sourceRecordId` = Forecast Time, `sourceUrl` = endpoint "latest".
+- **Tempos**: ambos trazem fuso explícito (`Z`), preservados sem suposição; tempo sem fuso é rejeitado. **"Observation Time" não vira `observedAt`**: a página explica o L1/lead time, mas não define esse campo do JSON, e ele **não é uma observação da aurora**. Fica preservado em `data.inputObservationTime` (painel: "SOURCE OBS. TIME", com essa ressalva).
+- **Dados** (`AuroraForecastData`): `inputObservationTime`, `forecastTime`, `dataFormat`, `totalGridCells` (células válidas, **zeros incluídos**), `activeGridCells` (valor > 0), `rejectedGridCells`, `peakValue`, `activeCells` (`[lon, lat, auroraValue][]`).
+- **Longitude**: 0..359 → −180..180 (`lon > 180 → lon − 360`). Transformação cartográfica da mesma posição, não mudança da informação.
+- **Validação mínima** (`src/lib/sources/noaa/ovation.ts`, sem Zod): objeto; Observation/Forecast Time ISO com fuso; `Data Format` exatamente `[Longitude, Latitude, Aurora]` (outra ordem de colunas → erro); `coordinates` array; cada célula com 3 números finitos, lon em [0, 360), lat em [−90, 90], valor ≥ 0; duplicatas descartadas. Células inválidas são descartadas e contadas; payload estruturalmente inválido ou sem células válidas → 502.
+- **Transferência**: só as células com valor > 0 são enviadas (~19 mil, ~220 KB, contra ~0,9 MB do arquivo original). Todo ponto válido ausente de `activeCells` tem valor **0** (zero, nunca "missing"); `totalGridCells`/`activeGridCells` registram isso.
+- **API interna**: Browser → `/api/space/weather/aurora` → adapter → NOAA. Cache em módulo de **4 min** (uma chamada à NOAA a cada 4 min no máximo; requisições simultâneas compartilham a chamada; falha nunca é guardada como snapshot).
+- **Polling/saúde**: `NOAA_OVATION_SYNC` = poll **5 min** (`useSourceSync`) e freshness **20 min** (≤ 4 min de cache + 5 min de poll, com tolerância a atrasos). **Política operacional do AURELIS, não SLA da NOAA** (a frequência de atualização observada, em minutos, também não é SLA). Entra no `aggregateHealth` sem regra especial. **SOURCES** = 4 com as quatro fontes com snapshot; **ENTITIES** continua terremotos + ISS (nenhuma célula conta).
+- **Mapa** (`src/components/map/aurora-layer.ts`, `src/lib/aurora-grid.ts`), desde a **6B.1**: uma **custom layer WebGL2** pequena (`aurelis-aurora-layer`, `renderingMode: "3d"`), sem dependência nova. **DATA**: a grade NOAA é copiada sem alteração para uma textura 360 × 181 (`R16F`, um texel por ponto da grade), enviada à GPU **uma vez por forecast**. **VISUALIZATION**: uma malha lon/lat de 1° amostra a textura com **interpolação visual local** entre os 4 pontos vizinhos da grade (filtragem bilinear do hardware com pesos smoothstep: sem linhas da grade, sem overshoot, nunca além de um passo de grade a partir de um ponto não-zero publicado). *Visual interpolation for rendering only; source grid values remain unchanged.* Não cria Observations nem altera `auroraValue`, `peakValue` ou proveniência. Sem splines, ruído, blur ou oval manual; hemisférios norte e sul vêm dos dados, sem espelhamento. **Antimeridiano**: longitude com wrap (`REPEAT`): 359° e 0° são vizinhos, sem costura em ±180°. **Polos**: latitude com `CLAMP_TO_EDGE` (sem wrap através do polo); a malha converge no polo da esfera (sem buraco nem anel). Na 6B a layer era de polígonos 1° × 1° (visual quadriculado).
+- **Visual**: paleta inspirada na aparência típica de auroras (tokens `--aurelis-aurora-low` ciano-verde → `--aurelis-aurora` verde → `--aurelis-aurora-high` verde luminoso → `--aurelis-aurora-peak` violeta frio só para valores muito altos); **não** afirma que o modelo prevê a cor física; sem vermelho, arco-íris ou dourado dominante; sem categorias de severidade. Stops só visuais. Opacidade: rampa suave (smoothstep nos valores baixos, máx. 0.62), zero transparente, sem borda rígida entre 0 e > 0.
+- **Ordem**: imagery/basemap < **aurora** < fronteiras < rótulos < terremotos < trilha/ISS (custom layer inserida antes da primeira `boundary_*`). **GLOBE**: casca esférica a **`AURORA_VISUAL_ALTITUDE_METERS` = 110 km** acima da superfície — **constante de apresentação**, não dado: a NOAA **não fornece altitude por célula** e o AURELIS **não afirma** que a aurora está a 110 km; serve só para separação visual/legibilidade. Projeção pela matriz de globo do MapLibre (mesma convenção de esfera da trilha 3D da ISS), transição para mercator em zoom alto como `projectTileFor3D`; depth test contra o planeta (some atrás da Terra, acompanha a rotação) **sem escrever no depth buffer** (a casca translúcida não esconde o que é desenhado depois). **FLAT**: sobre a superfície, **sem altitude**. MAP/SATELLITE não tocam a layer nem a textura.
+- **Layer opcional**: `auroraVisible` (estado de sessão no `Workspace`, default **false**, não persistido). A textura só é montada/enviada com a layer visível e quando o forecast muda (id); esconder só para de desenhar (snapshot e textura ficam); mostrar de novo não reprocessa. **Sem animação** (nada de pulsação, ondas, ruído, deriva, partículas).
+- **Performance**: 6B (polígonos) ≈ 150 ms de tarefa longa + ~2 s até estabilizar; **6B.1** ≈ 60 ms de tarefa longa ao ativar (compilação do shader + upload da textura), **0 ms** ao reexibir; nenhum render React por frame.
+- **Observação sobre os dados**: o arquivo verificado tem valores baixos (1–2) em todas as longitudes nas latitudes 0 e −1. Continuam no renderer (não filtrados), mas a rampa de opacidade os deixa quase transparentes — decisão de visualização, não remoção de dados.
+- **Painel SPACE** (SpaceWeatherPanel): mantém **PLANETARY Kp** (tag **ESTIMATED**, gráfico, proveniência própria) e ganha **AURORA FORECAST · 30–90 MIN** (tag **FORECAST**, botão SHOW ON MAP / HIDE AURORA, notas da NOAA sobre OVATION e lead time, aviso de que não garante visibilidade — nuvens, luz do dia e condições locais não são considerados —, VALID FOR, SOURCE OBS. TIME, GRID ativas/total, PEAK MODEL VALUE, INGESTED, SOURCE, NATURE, AURELIS CONFIDENCE, link da fonte). Saúde por produto dentro do painel (`PanelShell.sourceHealth` ficou opcional): "Kp SOURCE STALE" / "AURORA SOURCE STALE · Showing the last available forecast."; um produto stale não esconde o outro. Kp ESTIMATED ≠ Aurora FORECAST.
+- Não implementado: visibilidade personalizada, localização do usuário, nuvens, nascer/pôr do sol, lua, score de astrofoto, alertas/notificações de aurora, timeline/animação, imagens JPG hemisféricas, viewline experimental, vento solar, Bz, CME.
+
 ### Dívida técnica
 
 - **Saúde da fonte** (*Future source health should model explicit states such as fresh, stale and unavailable instead of source-specific cache heuristics.*): **parcialmente resolvida na 4D** no cliente (`SourceHealth`). O servidor ainda usa a heurística de idade de 120 s específica da rota de terremotos; generalizar quando houver a segunda fonte.
@@ -541,16 +570,17 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **ISS (Where The ISS At?)**: primeira Entity móvel, posição a cada 5 s, painel próprio e saúde da fonte independente; estado global agregado (LIVE/PARTIAL/…).
 - **Primeira fonte operacional: USGS Earthquakes M2.5+ / 24 h**, normalizada no servidor (`/api/earthquakes`) e exibida como círculos em ciano no mapa, **sincronizada a cada 60 s** com saúde da fonte (syncing/fresh/stale/unavailable) e indicador LIVE real.
 - **Space Weather (NOAA SWPC Planetary Kp)**: terceira fonte, Kp estimado atual + tendência de 6 h no painel de domínio SPACE (clique em SPACE na sidebar); sem Entity e sem mapa.
+- **Aurora forecast (NOAA SWPC OVATION)**: quarta fonte, forecast de 30–90 min em grade de 1° como layer opcional no mapa (SHOW ON MAP no painel SPACE) + resumo no painel; nature `forecast`, `validAt`; sem Entity.
 - **Seleção de terremoto + Intelligence Panel** (dados e proveniência), destaque dourado do evento selecionado.
 - **Hierarquia de rótulos por zoom** no basemap (países → capitais → cidades/estados → detalhes); ver `docs/MAP_ARCHITECTURE.md`.
 
 ## Ainda NÃO implementado (deliberadamente)
 
 - Outras fontes (cyber, aviação, marítimo, incêndios, clima…). Outros feeds USGS (All, M1+, M4.5+, Significant) e escolha de magnitude.
-- WebSocket/SSE (hoje: polling de 60 s para USGS e NOAA Kp, 5 s para a ISS). Notificações de eventos novos.
+- WebSocket/SSE (hoje: polling de 60 s para USGS e NOAA Kp, 5 min para OVATION, 5 s para a ISS). Notificações de eventos novos.
 - Persistência e histórico de observações; reconciliação de Entity IDs por `ids` do USGS.
 - Clustering, popup, tooltip; endpoint Detail do USGS.
-- Outras fontes SPACE (Hubble, Tiangong, CelesTrak…), satellite.js, órbita, ground track, footprint visual, outras câmeras/streams (a única mídia é o stream oficial da NASA da ISS). Clima espacial além do Kp estimado (forecast, alertas, flares, vento solar, aurora, CME, GOES).
+- Outras fontes SPACE (Hubble, Tiangong, CelesTrak…), satellite.js, órbita, ground track, footprint visual, outras câmeras/streams (a única mídia é o stream oficial da NASA da ISS). Clima espacial além do Kp estimado e do forecast OVATION mais recente (forecast de Kp, alertas, flares, vento solar/Bz, viewline, CME, GOES, timeline de aurora).
 - Histórico persistente de posições da ISS (Echo); a trilha atual é só memória recente (10 min / 120 pontos).
 - Estruturas especializadas para outros domínios (avião, navio, malware…) e identificadores naturais.
 - Validação de payload com biblioteca de schema (hoje: validação mínima manual no adapter).
@@ -596,3 +626,5 @@ npm start
 2026-10-05 22:50 | map/iss-orbit-trail-layer.ts, map/iss-layer.ts, lib/iss-trail.ts, map/WorldMap.tsx, panel/IssPanel.tsx | Etapa 5H: no GLOBE a trilha da ISS é uma custom layer 3D (WebGL + projectTileFor3D do MapLibre) em altitude orbital real por ponto, terminando no marcador (mesmo displayTime ~5 s, endpoint visual não persistido), com oclusão por profundidade; FLAT mantém a trilha 2D; sem previsão orbital.
 2026-10-06 13:00 | lib/sources/noaa, app/api/space/weather/kp, types/space-weather.ts, lib/source-health.ts, Workspace, layout/Sidebar, panel/SpaceWeatherPanel.tsx, panel/KpTrendChart.tsx | Etapa 6A: terceira fonte, NOAA SWPC Planetary Kp (estimativa quase em tempo real, 1 min). Observation sem Entity e sem localização (nature estimated, confidence unknown, observedAt = time_tag lido como UTC); validação mínima e amostra atual pelo maior observedAt; janela de 6 h no snapshot; cache 45 s, poll 60 s, freshness 180 s. Workspace com PanelTarget (entity | domain); SPACE abre o SpaceWeatherPanel (valor atual + gráfico SVG 6 h + linha de referência G1). Nada no mapa; ENTITIES inalterado; SOURCES 3.
 2026-10-06 13:20 | lib/sources/noaa/swpc-kp.ts, AURELIS_CONTEXT.md, docs/DATA_MODEL.md | Correção semântica 6A: UTC do time_tag registrado como suposição de normalização AURELIS (convenção operacional SWPC), não como fato do schema (o campo não traz fuso). Comportamento inalterado.
+2026-10-06 14:15 | types/observation.ts, types/aurora.ts, lib/sources/noaa/{ovation,source}.ts, app/api/space/weather/aurora, lib/aurora-grid.ts, map/aurora-layer.ts, map/{WorldMap,MapView}.tsx, Workspace, panel/{SpaceWeatherPanel,primitives}.tsx, lib/source-health.ts, globals.css | Etapa 6B: quarta fonte, NOAA SWPC OVATION aurora (forecast 30–90 min). EvidenceNature ganha 'forecast' e Observation ganha validAt. Uma Observation por snapshot (validAt = Forecast Time; 'Observation Time' preservado em data.inputObservationTime, não como observedAt); valor 'Aurora' sem semântica confirmada → auroraValue; longitude 0..359 → −180..180; só células não-zero transferidas/renderizadas (contagens totais preservadas). Layer opcional de células 1° (sem interpolação, polos limitados, split no antimeridiano) entre basemap e fronteiras; cache 4 min, poll 5 min, freshness 20 min (política AURELIS). Painel SPACE com Kp (ESTIMATED) e Aurora (FORECAST) separados, saúde por produto. SOURCES 4; ENTITIES inalterado.
+2026-10-06 14:40 | map/aurora-layer.ts, lib/aurora-grid.ts, map/WorldMap.tsx, panel/SpaceWeatherPanel.tsx, globals.css | Etapa 6B.1: aurora OVATION passa de polígonos 1° para custom layer WebGL2 (grade como textura 360×181, interpolação visual local smoothstep-bilinear com wrap de longitude e clamp nos polos); no GLOBE casca a 110 km (AURORA_VISUAL_ALTITUDE_METERS, constante de apresentação, não altitude NOAA), depth test sem escrita; FLAT sem altitude; paleta aurora (ciano-verde → verde → verde luminoso → violeta frio), rampa de opacidade suave. Dados, Observation e proveniência inalterados; sem animação; ativação ~60 ms (antes ~150 ms + ~2 s).

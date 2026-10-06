@@ -13,6 +13,8 @@ São apenas tipos (sem banco). A validação runtime de dados externos fica nos 
 | `relationship.ts` | `EntityRelationship`, `RelationshipNature`                |
 | `earthquake.ts`   | `EarthquakeObservationData`, `EarthquakeFeed` (dados específicos de terremoto) |
 | `space.ts`        | `IssObservationData`, `IssFeed` (dados específicos da ISS) |
+| `space-weather.ts`| `PlanetaryKpObservationData`, `PlanetaryKpFeed` (Kp planetário NOAA SWPC, sem Entity) |
+| `aurora.ts`       | `AuroraForecastData`, `AuroraGridCell`, `AuroraForecastFeed` (forecast OVATION, sem Entity) |
 | `source-health.ts`| `SourceHealth`, `SourceSyncState`, `GlobalHealth` (estado técnico da integração) |
 
 Regra central: **o AURELIS nunca apresenta uma interpretação como se fosse uma observação comprovada.**
@@ -63,6 +65,7 @@ Algo que uma fonte observou, reportou ou forneceu num momento. `T` é o payload 
 | `reported`   | A fonte afirma, sem medição própria (boletim, alerta, entrada de feed). |
 | `estimated`  | Valor calculado por modelo/método a partir de medições (magnitude, posição interpolada). |
 | `inferred`   | Conclusão derivada de outros dados, pela fonte ou pelo AURELIS. |
+| `forecast`   | Saída de modelo sobre um estado futuro (ou ainda não observado), válida em `validAt` (ex.: forecast de aurora OVATION). **Não** é o mesmo que `estimated`: uma estimativa descreve o presente/passado a partir de medições; um forecast descreve o momento para o qual foi emitido. |
 
 `confidence: ConfidenceLevel` (`unknown` | `low` | `medium` | `high`) é a confiança **nesta afirmação específica**. Na ausência de base para avaliar, usa-se `unknown`.
 
@@ -117,8 +120,11 @@ Por isso a `Observation` preserva:
 | `observedAt`     | Quando o evento **aconteceu ou foi observado** no mundo. |
 | `reportedAt`     | Quando a fonte **publicou/reportou**. |
 | `ingestedAt`     | Quando o **AURELIS recebeu**. Sempre presente, definido pelo AURELIS. |
+| `validAt`        | Para **forecasts/saídas de modelo**: o momento para o qual a previsão se aplica. Opcional; só quando a fonte o fornece. |
 
-Os três tempos são distintos e não devem ser confundidos.
+Os três tempos são distintos e não devem ser confundidos. `validAt` é um quarto tempo, **não substitui** nenhum deles: um forecast pode ter `validAt` sem `observedAt` (nada foi observado ainda).
+
+> **Exemplo (OVATION, Etapa 6B):** "Forecast Time" 14:48Z → `validAt`; "Observation Time" 13:47Z **não** vira `observedAt` (não é uma observação da aurora e o campo não está definido na documentação do JSON): fica em `data.inputObservationTime`; `ingestedAt` = chegada ao AURELIS.
 
 > **Exemplo conceitual:** um terremoto ocorre às 10:00:00 (`observedAt`), a agência publica às 10:07 (`reportedAt`), e o AURELIS ingere às 10:08 (`ingestedAt`). Mostrar 10:08 como "hora do terremoto" seria um erro.
 

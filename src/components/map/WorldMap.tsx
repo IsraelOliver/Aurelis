@@ -19,7 +19,8 @@ import { IMAGERY_SOURCE_ID, addImageryLayer, applyBasemapMode } from "./basemap-
 import { ISS_ENTITY_ID } from "@/lib/sources/wtia/source";
 import { VISUAL_DELAY_MS, interpolatePosition } from "@/lib/iss-interpolation";
 import { orbitTrailStrips, type TrailPoint } from "@/lib/iss-trail";
-import type { EarthquakeFeed, IssFeed } from "@/types";
+import type { AuroraForecastFeed, EarthquakeFeed, IssFeed } from "@/types";
+import { addAuroraLayer, setAuroraCells, setAuroraVisible } from "./aurora-layer";
 import {
   EARTHQUAKES_LAYER_ID,
   addEarthquakeLayer,
@@ -51,6 +52,8 @@ const INTERACTIVE_LAYERS = [...ISS_INTERACTIVE_LAYERS, EARTHQUAKES_LAYER_ID];
  */
 export default function WorldMap({
   earthquakes,
+  aurora,
+  auroraVisible,
   iss,
   issTrail,
   issPositions,
@@ -61,6 +64,10 @@ export default function WorldMap({
   onSelectEntity,
 }: {
   earthquakes: EarthquakeFeed | null;
+  /** Latest OVATION forecast snapshot (kept while hidden). */
+  aurora: AuroraForecastFeed | null;
+  /** Optional aurora layer, off by default. */
+  auroraVisible: boolean;
   iss: IssFeed | null;
   /** Recent tracked path segments (already split at gaps and the antimeridian). */
   issTrail: [number, number][][];
@@ -130,6 +137,7 @@ export default function WorldMap({
     map.on("load", () => {
       addEarthquakeLayer(map);
       addIssLayer(map);
+      addAuroraLayer(map);
 
       // One handler for all data layers: the top-most feature wins.
       map.on("click", (event) => {
@@ -190,6 +198,19 @@ export default function WorldMap({
       setEarthquakeData(mapRef.current, earthquakes);
     }
   }, [styleReady, earthquakes]);
+
+  // Aurora grid: uploaded only while visible and only when the forecast changes (the
+  // layer ignores an already-loaded forecast id). Hiding only stops drawing; the
+  // snapshot and the GPU texture stay. MAP/SATELLITE and projection changes do not touch it.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!styleReady || !map) return;
+    const observation = aurora?.observation;
+    if (auroraVisible && observation) {
+      setAuroraCells(map, observation.id, observation.data.activeCells);
+    }
+    setAuroraVisible(map, auroraVisible && Boolean(observation));
+  }, [styleReady, aurora, auroraVisible]);
 
   // Latest inputs for the animation loop, read every frame without re-rendering.
   const issEntityRef = useRef<{ id: string; lon: number; lat: number; altitudeKm: number | null } | null>(

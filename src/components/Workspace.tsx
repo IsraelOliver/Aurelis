@@ -1,10 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { EarthquakeFeed, IssFeed, PlanetaryKpFeed, SourceSyncState } from "@/types";
+import type {
+  AuroraForecastFeed,
+  EarthquakeFeed,
+  IssFeed,
+  PlanetaryKpFeed,
+  SourceSyncState,
+} from "@/types";
 import {
   ISS_SYNC,
   NOAA_KP_SYNC,
+  NOAA_OVATION_SYNC,
   USGS_SYNC,
   aggregateHealth,
   deriveHealth,
@@ -12,7 +19,7 @@ import {
 } from "@/lib/source-health";
 import { USGS_EARTHQUAKES_SOURCE } from "@/lib/sources/usgs/source";
 import { ISS_ENTITY_ID, WTIA_ISS_SOURCE } from "@/lib/sources/wtia/source";
-import { NOAA_SWPC_KP_SOURCE } from "@/lib/sources/noaa/source";
+import { NOAA_SWPC_KP_SOURCE, NOAA_SWPC_OVATION_SOURCE } from "@/lib/sources/noaa/source";
 import { appendTrailPoint, trailToSegments, type TrailPoint } from "@/lib/iss-trail";
 import Topbar from "@/components/layout/Topbar";
 import Sidebar from "@/components/layout/Sidebar";
@@ -142,17 +149,33 @@ export default function Workspace() {
     "NOAA SWPC Kp",
     noop,
   );
+  // Modeled field, no entity: feeds the optional aurora layer and the SPACE panel.
+  const aurora = useSourceSync<AuroraForecastFeed>(
+    "/api/space/weather/aurora",
+    NOAA_OVATION_SYNC.pollIntervalMs,
+    "NOAA SWPC OVATION",
+    noop,
+  );
+  // Aurora layer on the map: session state, off by default, not persisted.
+  const [auroraVisible, setAuroraVisible] = useState(false);
   const now = useNow(1000);
 
   const usgsState = toSyncState(USGS_EARTHQUAKES_SOURCE.id, usgs, USGS_SYNC, now);
   const issState = toSyncState(WTIA_ISS_SOURCE.id, iss, ISS_SYNC, now);
   const kpState = toSyncState(NOAA_SWPC_KP_SOURCE.id, kp, NOAA_KP_SYNC, now);
-  const globalHealth = aggregateHealth([usgsState.health, issState.health, kpState.health]);
+  const auroraState = toSyncState(NOAA_SWPC_OVATION_SOURCE.id, aurora, NOAA_OVATION_SYNC, now);
+  const globalHealth = aggregateHealth([
+    usgsState.health,
+    issState.health,
+    kpState.health,
+    auroraState.health,
+  ]);
 
   const sources = [
     { id: USGS_EARTHQUAKES_SOURCE.id, name: USGS_EARTHQUAKES_SOURCE.name, state: usgsState },
     { id: WTIA_ISS_SOURCE.id, name: WTIA_ISS_SOURCE.name, state: issState },
     { id: NOAA_SWPC_KP_SOURCE.id, name: NOAA_SWPC_KP_SOURCE.name, state: kpState },
+    { id: NOAA_SWPC_OVATION_SOURCE.id, name: NOAA_SWPC_OVATION_SOURCE.name, state: auroraState },
   ];
   const sourceSummary = sources
     .map((s) => `${s.name}: ${s.state.health.toUpperCase()}`)
@@ -171,7 +194,17 @@ export default function Workspace() {
   let panel: React.ReactNode = null;
   const close = () => setPanelTarget(null);
   if (panelTarget?.type === "domain") {
-    panel = <SpaceWeatherPanel feed={kp.snapshot} sourceHealth={kpState.health} onClose={close} />;
+    panel = (
+      <SpaceWeatherPanel
+        kp={kp.snapshot}
+        kpHealth={kpState.health}
+        aurora={aurora.snapshot}
+        auroraHealth={auroraState.health}
+        auroraVisible={auroraVisible}
+        onToggleAurora={() => setAuroraVisible((v) => !v)}
+        onClose={close}
+      />
+    );
   } else if (selectedEntityId === ISS_ENTITY_ID && iss.snapshot) {
     const entity = iss.snapshot.entities.find((e) => e.id === selectedEntityId);
     const observation = iss.snapshot.observations.find((o) => o.entityId === selectedEntityId);
@@ -222,6 +255,8 @@ export default function Workspace() {
         <main className="relative min-w-0 flex-1">
           <MapView
             earthquakes={usgs.snapshot}
+            aurora={aurora.snapshot}
+            auroraVisible={auroraVisible}
             iss={iss.snapshot}
             issTrail={issTrailSegments}
             issPositions={issTrail}
@@ -232,8 +267,10 @@ export default function Workspace() {
         {panel}
       </div>
       <StatusBar
-        sourceCount={[usgs.snapshot, iss.snapshot, kp.snapshot].filter(Boolean).length}
-        // Kp creates no Entity: only earthquakes and the ISS count.
+        sourceCount={
+          [usgs.snapshot, iss.snapshot, kp.snapshot, aurora.snapshot].filter(Boolean).length
+        }
+        // Kp and the aurora forecast create no Entity: only earthquakes and the ISS count.
         entityCount={
           (usgs.snapshot?.entities.length ?? 0) + (iss.snapshot?.entities.length ?? 0)
         }

@@ -20,6 +20,12 @@
   --aurelis-gold-muted: #efb001;
 
   --aurelis-cyan: #53eafd;
+  /* Aurora forecast layer only: aurora-inspired domain palette, not a severity
+     scale and not a forecast of the physical color. Low → mid → high → peak. */
+  --aurelis-aurora-low: #4fd2c6;
+  --aurelis-aurora: #5ee6a8;
+  --aurelis-aurora-high: #9df7b9;
+  --aurelis-aurora-peak: #a98cf0;
 
   --aurelis-text: #eeeeef;
   --aurelis-text-muted: #989ba2;

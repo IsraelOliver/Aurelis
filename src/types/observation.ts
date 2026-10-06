@@ -7,8 +7,10 @@ import type { GeoLocation } from "./location";
  * - "reported": stated by the source without its own measurement (advisory, report, feed entry).
  * - "estimated": computed by a model or method from measurements (e.g. magnitude, interpolated position).
  * - "inferred": a conclusion drawn from other data, by the source or by AURELIS.
+ * - "forecast": model output about a future (or not yet observed) state, valid
+ *   at `validAt` (e.g. an aurora forecast). Not an estimate of the present.
  */
-export type EvidenceNature = "observed" | "reported" | "estimated" | "inferred";
+export type EvidenceNature = "observed" | "reported" | "estimated" | "inferred" | "forecast";
 
 /**
  * Something a specific source observed, reported or provided at a given moment.
@@ -32,6 +34,11 @@ export interface Observation<T = unknown> {
   observedAt?: IsoDateTime;
   /** When the source published/reported it. */
   reportedAt?: IsoDateTime;
+  /**
+   * When a forecast/model output applies (the time it is valid for). Distinct
+   * from observedAt, reportedAt and ingestedAt; set only when the source gives it.
+   */
+  validAt?: IsoDateTime;
   /** When AURELIS received it. Always known, set by AURELIS. */
   ingestedAt: IsoDateTime;
 

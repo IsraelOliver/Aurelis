@@ -62,13 +62,14 @@ export function PanelShell({
 }: {
   eyebrow: string;
   title: string;
-  sourceHealth: SourceHealth;
+  /** Single-source panels; a multi-source domain panel shows notices per section instead. */
+  sourceHealth?: SourceHealth;
   onClose: () => void;
   /** Moderately wider (e.g. while a video is open); capped relative to the viewport. */
   wide?: boolean;
   children: React.ReactNode;
 }) {
-  const notice = HEALTH_NOTICE[sourceHealth];
+  const notice = sourceHealth ? HEALTH_NOTICE[sourceHealth] : undefined;
   return (
     <aside
       aria-label="Intelligence panel"

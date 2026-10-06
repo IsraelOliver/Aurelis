@@ -32,6 +32,17 @@ export const ISS_SYNC: SyncConfig = { pollIntervalMs: 5_000, freshnessWindowMs: 
  */
 export const NOAA_KP_SYNC: SyncConfig = { pollIntervalMs: 60_000, freshnessWindowMs: 180_000 };
 
+/**
+ * NOAA SWPC OVATION aurora: the file changes on a scale of minutes (observed,
+ * not an NOAA SLA). The route serves a snapshot at most ~4 min old
+ * (MIN_FETCH_INTERVAL_MS in app/api/space/weather/aurora/route.ts) + 5 min
+ * poll ≈ 9 min; 20 min tolerates transient delays. AURELIS operational policy.
+ */
+export const NOAA_OVATION_SYNC: SyncConfig = {
+  pollIntervalMs: 5 * 60_000,
+  freshnessWindowMs: 20 * 60_000,
+};
+
 export function deriveHealth(input: {
   hasSnapshot: boolean;
   attempted: boolean;
