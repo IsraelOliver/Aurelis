@@ -39,10 +39,15 @@ export default function Sidebar({
   sources,
   activeDomain,
   onOpenDomain,
+  aiOpen,
+  onToggleAi,
 }: {
   sources: SidebarSource[];
   activeDomain: DomainId | null;
   onOpenDomain: (domain: DomainId) => void;
+  /** SMILEY panel open (personal intelligence; separate from the domains). */
+  aiOpen: boolean;
+  onToggleAi: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -115,8 +120,33 @@ export default function Sidebar({
         })}
       </ul>
 
+      {/* SMILEY: personal intelligence over the domains, not one of them (discreet divider). */}
+      <div className="mt-auto border-t border-line px-2 py-2">
+        <button
+          type="button"
+          className={collapsed ? `${ROW} justify-center px-0` : ROW}
+          data-active={aiOpen}
+          aria-pressed={aiOpen}
+          title={collapsed ? "SMILEY — AURELIS personal intelligence" : "Open SMILEY (AURELIS personal intelligence)"}
+          onClick={onToggleAi}
+        >
+          <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gold opacity-0 group-data-[active=true]:opacity-100" />
+          <span className="text-gold/80 transition-colors group-hover:text-gold">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3.5l8.5 8.5-8.5 8.5L3.5 12z" />
+              <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+            </svg>
+          </span>
+          {collapsed ? (
+            <span className="sr-only">SMILEY</span>
+          ) : (
+            <span className="text-[11px] font-medium tracking-[0.16em]">SMILEY</span>
+          )}
+        </button>
+      </div>
+
       {collapsed ? (
-        <ul className="mt-auto flex flex-col items-center gap-2 border-t border-line py-3" aria-label="Sources">
+        <ul className="flex flex-col items-center gap-2 border-t border-line py-3" aria-label="Sources">
           {sources.map((source) => (
             <li
               key={source.id}
@@ -133,7 +163,7 @@ export default function Sidebar({
           ))}
         </ul>
       ) : (
-        <div className="mt-auto border-t border-line px-4 py-3 text-[11px] leading-relaxed text-fg-subtle">
+        <div className="border-t border-line px-4 py-3 text-[11px] leading-relaxed text-fg-subtle">
           <p className="text-[10px] font-medium tracking-[0.2em]">SOURCES</p>
           <ul className="mt-1 flex flex-col gap-1.5">
             {sources.map((source) => (

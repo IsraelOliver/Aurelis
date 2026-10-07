@@ -64,6 +64,12 @@ import AirPanel from "@/components/panel/AirPanel";
 import AircraftPanel from "@/components/panel/AircraftPanel";
 import IssPanel from "@/components/panel/IssPanel";
 import SpaceWeatherPanel from "@/components/panel/SpaceWeatherPanel";
+import AiPanel from "@/components/panel/AiPanel";
+import { useAiChat } from "./useAiChat";
+import { buildSmileyContext, type SmileyContextInput } from "@/lib/ai/context";
+import { focusCapsule, focusKindOf } from "@/lib/ai/capsules";
+import { routeQuestion } from "@/lib/ai/router";
+import type { AiDomain } from "@/lib/ai/types";
 import { useSourceSync, type SourceSync } from "./useSourceSync";
 import { useCloudCover } from "./useCloudCover";
 import { useAirTraffic } from "./useAirTraffic";
@@ -141,6 +147,9 @@ const noop = () => {};
  */
 export default function Workspace() {
   const [panelTarget, setPanelTarget] = useState<PanelTarget | null>(null);
+  // SMILEY: its own right-panel view over the current selection (which it keeps as FOCUS).
+  const [aiOpen, setAiOpen] = useState(false);
+  const aiChat = useAiChat();
   const selectedEntityId = panelTarget?.type === "entity" ? panelTarget.entityId : null;
   const selectEntity = useCallback((entityId: string) => {
     setPanelTarget({ type: "entity", entityId });
@@ -288,6 +297,7 @@ export default function Workspace() {
       firstAirOpen.current = false;
       setLayerVisibility((v) => ({ ...v, aircraft: true }));
     }
+    setAiOpen(false);
     setPanelTarget({ type: "domain", domain });
   };
 
@@ -420,13 +430,16 @@ export default function Workspace() {
     .join(" · ");
 
   useEffect(() => {
-    if (!panelTarget) return;
+    if (!panelTarget && !aiOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setPanelTarget(null);
+      if (event.key !== "Escape") return;
+      // SMILEY closes first, back to the panel under it.
+      if (aiOpen) setAiOpen(false);
+      else setPanelTarget(null);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [panelTarget]);
+  }, [panelTarget, aiOpen]);
 
   // At most one panel: a domain view, or the selected entity (which belongs to exactly one source).
   let panel: React.ReactNode = null;
@@ -565,13 +578,65 @@ export default function Workspace() {
     }
   }
 
+  // SMILEY: the question is routed and its context built only when it is sent, from what this
+  // shell already holds (router + capsules + budget; nothing is sent that the route does not need).
+  const aiData = {
+    iss: iss.snapshot,
+    kp: kp.snapshot,
+    plasma: plasma.snapshot,
+    mag: mag.snapshot,
+    xray: xray.snapshot,
+    aurora: aurora.snapshot,
+    earthquakes: usgs.snapshot,
+    eonet: eonet.snapshot,
+    eonetInView,
+    eonetFilters,
+    weather: weatherPoint ? weather.snapshot : null,
+    clouds: { shown: layerVisibility.clouds, feed: cloudsFeed },
+    air: { pollingActive: airActive, shown: layerVisibility.aircraft, quotaLow: air.quotaLow, feed: air.snapshot },
+  };
+  // Only a selection that has a panel (i.e. still exists in its source) can be the focus.
+  const aiFocusId = panel ? selectedEntityId : null;
+  const prepareAiRequest = (question: string, nowMs: number) => {
+    const route = routeQuestion(question, {
+      focusKind: focusKindOf(aiFocusId, aiData),
+      openPanel: panelTarget?.type === "domain" ? panelTarget.domain : panelTarget ? "entity" : null,
+    });
+    const input: SmileyContextInput = {
+      ...aiData,
+      nowMs,
+      selectedEntityId: aiFocusId,
+      sources: sources.map((s) => ({ id: s.id, name: s.name, health: s.state.health, snapshotAgeMs: s.state.snapshotAgeMs })),
+    };
+    return { route, built: buildSmileyContext(input, route) };
+  };
+  const aiAvailable: AiDomain[] = [
+    ...(iss.snapshot || kp.snapshot || plasma.snapshot || mag.snapshot || xray.snapshot || aurora.snapshot ? ["space" as const] : []),
+    ...(usgs.snapshot || eonet.snapshot ? ["disasters" as const] : []),
+    ...(aiData.weather || cloudsFeed ? ["weather" as const] : []),
+    ...(air.snapshot ? ["air" as const] : []),
+  ];
+  const rightPanel = aiOpen ? (
+    <AiPanel
+      chat={aiChat}
+      domains={aiAvailable}
+      focusLabel={aiOpen ? (focusCapsule(aiFocusId, aiData, true)?.label ?? null) : null}
+      prepare={prepareAiRequest}
+      onClose={() => setAiOpen(false)}
+    />
+  ) : (
+    panel
+  );
+
   return (
     <>
       <Topbar health={globalHealth} sourceSummary={sourceSummary} />
       <div className="flex min-h-0 flex-1">
         <Sidebar
-          activeDomain={panelTarget?.type === "domain" ? panelTarget.domain : null}
+          activeDomain={!aiOpen && panelTarget?.type === "domain" ? panelTarget.domain : null}
           onOpenDomain={openDomain}
+          aiOpen={aiOpen}
+          onToggleAi={() => setAiOpen((open) => !open)}
           sources={sources.map((s) => ({
             id: s.id,
             name: s.name,
@@ -598,7 +663,7 @@ export default function Workspace() {
             aircraftShown={airActive}
           />
         </main>
-        {panel}
+        {rightPanel}
       </div>
       <StatusBar
         sourceCount={sources.filter((s) => s.snapshot !== null).length}
