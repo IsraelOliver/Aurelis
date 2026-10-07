@@ -73,7 +73,16 @@ Hoje: USGS ~60 s; ISS ~5 s. Fontes futuras podem ter frequências diferentes, ou
 - Evitar componentes novos que dificultem o mobile sem necessidade.
 - Direção: desktop = mapa + painel lateral; mobile = mapa + bottom sheet. PWA pode ser considerado no futuro.
 
+### Marco atual
+
+- **CURRENT MILESTONE:** terminar e publicar o **AURELIS 1.0**. Pendências: AIR/OpenSky no Railway, smoke final de produção, auditoria e tag `v1.0.0` (checklist em `docs/RELEASE_1.0.md`).
+- **NEXT AFTER RELEASE:** AURELIS 1.1 — Visual Identity Rework.
+- **AFTER 1.1:** SMILEY 2A — Persistent Memory.
+- Ordem oficial completa: `docs/ROADMAP.md`. *AURELIS is never finished forever. Versions are finished.*
+
 ### Roadmap (não imutável)
+
+Histórico das etapas iniciais; a ordem atual está em `docs/ROADMAP.md`.
 
 | # | Etapa | Estado |
 | - | ----- | ------ |
@@ -851,3 +860,4 @@ npm start
 2026-10-07 18:00 | lib/ai/{types,router,capsules,context,personal,profile,attention,system-prompt,openai,chat-handler}.ts, app/api/ai/chat, components/{useAiChat,Workspace}.tsx, panel/{AiPanel,AiMarkdown}.tsx, layout/Sidebar, docs/AI_ARCHITECTURE.md | Etapa AI 1B: AURELIS AI → SMILEY (AURELIS Personal Intelligence). Context Router determinístico, Domain Capsules, Context Budget por intent, perfil pessoal estruturado só no servidor com recuperação seletiva (origin user_stated/observed/inferred), fundação do Attention Engine (6 capacidades preparadas), janela de 8 mensagens, prompt compacto, telemetria por resposta e de sessão. "Olá" 5.665 → 398 tokens de entrada. Ligação de view do mapa (1A) removida: o contexto não usa mais câmera/projeção.
 2026-10-07 19:10 | proxy.ts, lib/supabase/{env,client,server,proxy}.ts, lib/{auth,auth-core}.ts, app/{page,app/page,login/page,login/LoginScreen}.tsx, app/api/** (13 handlers), layout/{Sidebar,SessionControl}.tsx, docs/AUTH_ARCHITECTURE.md | Etapa AUTH 1A: acesso privado single-user com Supabase Auth (@supabase/ssr, sessão em cookies, proxy.ts do Next 16 só para refresh, autorização com getClaims no servidor). Dashboard movido de / para /app; / redireciona (/app ou /login); /login com identidade AURELIS; 13 Route Handlers exigem sessão antes de qualquer upstream (401 UNAUTHORIZED); logout na sidebar. Sem service_role, sem tabelas, sem sign-up.
 2026-10-07 21:40 | lib/sheet.ts, layout/{Topbar,Sidebar,MobileDrawer,StatusBar,SessionControl}.tsx, panel/{PanelDock,SmileyDock,AiPanel,AiMarkdown,primitives,IssCamera,EonetEventPanel}.tsx, map/{MapView,SegmentedControl}.tsx, Workspace.tsx, app/{layout,login/LoginScreen}.tsx, globals.css | Etapa UI Mobile 1A: layout compacto abaixo de lg (header com MENU e busca recolhível, navigation drawer com logout fixo, bottom sheet de 3 alturas para painéis de dados, SMILEY em tela cheia com altura da visual viewport e BACK que preserva o mapa), alvos de 44 px, safe areas, viewport-fit=cover. Corrigidos: logout cortado na sidebar desktop em telas baixas (agora rola com rodapé fixo) e rolagem indevida da página por sr-only sem ancestral posicionado. Desktop inalterado; nenhuma lógica de dados, AIR, auth ou SMILEY alterada.
+2026-10-07 22:30 | docs/ROADMAP.md, docs/RELEASE_1.0.md, AURELIS_CONTEXT.md | Documentação: roadmap oficial (1.0 → 1.1 Visual Identity Rework → SMILEY 2A Memory → 2B Attention → Intel Scout → Context/Events → SEA) e checklist de release 1.0 (nada marcado; AIR no Railway é o bloqueador). Sem mudança de código.
