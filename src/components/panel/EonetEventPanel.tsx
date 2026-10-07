@@ -96,7 +96,7 @@ export default function EonetEventPanel({
                   href={s.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[12px] text-fg-muted underline decoration-line-strong underline-offset-2 hover:text-fg"
+                  className="relative text-[12px] text-fg-muted underline decoration-line-strong underline-offset-2 hover:text-fg"
                 >
                   {s.id}
                   <span className="sr-only"> (opens in a new tab)</span>

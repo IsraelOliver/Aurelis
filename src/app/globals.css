@@ -125,3 +125,39 @@ body {
   color: var(--aurelis-text);
   text-decoration: underline;
 }
+
+/*
+ * Compact layout (below Tailwind `lg`, 64rem): the right panel is a bottom
+ * sheet over the map. MapLibre's corner controls stay above it
+ * (--sheet-offset, set on <main> from lib/sheet.ts) and get 44 px touch
+ * targets. Desktop (lg and up) is unaffected.
+ */
+@media (width < 64rem) {
+  /* `main` prefix: maplibre-gl.css loads after this file with equal specificity. */
+  main .maplibregl-ctrl-bottom-right,
+  main .maplibregl-ctrl-bottom-left {
+    bottom: var(--sheet-offset, 0px);
+    transition: bottom 200ms;
+  }
+  main .maplibregl-ctrl-bottom-right {
+    right: env(safe-area-inset-right);
+  }
+  .maplibregl-ctrl-group button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  /* Expanded sheet: little map is left; pinch zooms, the buttons return when the sheet shrinks. */
+  main[data-sheet="expanded"] .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+    display: none;
+  }
+  /* Collapsed sheet: only the handle and the panel header show; no inner scrolling. */
+  [data-sheet="collapsed"] > aside {
+    overflow: hidden;
+  }
+}
+/* Short landscape screens: an expanded sheet leaves no room for the map controls. */
+@media (width < 64rem) and (height < 32rem) {
+  main[data-sheet="expanded"] .aurelis-map-controls {
+    display: none;
+  }
+}

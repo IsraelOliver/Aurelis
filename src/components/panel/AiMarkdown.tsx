@@ -79,7 +79,7 @@ export function parseBlocks(source: string): Block[] {
 
 export default function AiMarkdown({ text }: { text: string }) {
   return (
-    <div className="flex flex-col gap-2 text-[12.5px] leading-relaxed text-fg">
+    <div className="flex min-w-0 flex-col gap-2 break-words text-[12.5px] leading-relaxed text-fg [overflow-wrap:anywhere] max-lg:text-[13.5px]">
       {parseBlocks(text).map((block, i) => {
         if (block.type === "h")
           return <p key={i} className="mt-1 text-[10.5px] font-semibold tracking-[0.18em] text-fg-muted">{inline(block.text.toUpperCase())}</p>;

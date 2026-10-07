@@ -7,17 +7,17 @@ export const EMPTY = "—";
 
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-[8.5rem_1fr] gap-3 py-1.5">
+    <div className="grid grid-cols-[8.5rem_1fr] gap-3 py-1.5 max-sm:grid-cols-[7.25rem_1fr]">
       <dt className="pt-px text-[10px] font-medium tracking-[0.18em] text-fg-subtle">
         {label}
       </dt>
-      <dd className="min-w-0 break-words text-[12px] text-fg">{children}</dd>
+      <dd className="min-w-0 break-words text-[12px] text-fg max-lg:text-[13.5px]">{children}</dd>
     </div>
   );
 }
 
 export function Note({ children }: { children: React.ReactNode }) {
-  return <span className="mt-0.5 block text-[11px] leading-snug text-fg-subtle">{children}</span>;
+  return <span className="mt-0.5 block text-[11px] leading-snug text-fg-subtle max-lg:text-[12px]">{children}</span>;
 }
 
 export function Time({ iso }: { iso: string | undefined }) {
@@ -73,11 +73,11 @@ export function PanelShell({
   return (
     <aside
       aria-label="Intelligence panel"
-      className={`flex shrink-0 flex-col overflow-y-auto border-l border-line bg-surface ${
+      className={`flex shrink-0 flex-col overflow-y-auto overscroll-contain border-l border-line bg-surface max-lg:min-h-0 max-lg:w-full max-lg:max-w-none max-lg:flex-1 max-lg:border-l-0 ${
         wide ? "w-[440px] max-w-[50vw]" : "w-[360px] max-w-[50vw]"
       }`}
     >
-      <header className="flex items-start gap-3 px-4 pb-3 pt-4">
+      <header className="flex items-start gap-3 px-4 pb-3 pt-4 max-lg:sticky max-lg:top-0 max-lg:z-10 max-lg:bg-surface">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-2 text-[10px] font-medium tracking-[0.28em] text-fg-subtle">
             <span className="size-1.5 rounded-full bg-gold" aria-hidden="true" />
@@ -89,7 +89,7 @@ export function PanelShell({
           type="button"
           onClick={onClose}
           aria-label="Close intelligence panel"
-          className="-mr-1 grid size-7 shrink-0 place-items-center rounded text-fg-subtle transition-colors hover:bg-elevated hover:text-fg"
+          className="-mr-1 grid size-7 shrink-0 place-items-center rounded text-fg-subtle transition-colors hover:bg-elevated hover:text-fg max-lg:-mr-2.5 max-lg:-mt-2 max-lg:size-11"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" />

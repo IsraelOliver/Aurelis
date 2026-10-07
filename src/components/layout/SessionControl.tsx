@@ -52,7 +52,7 @@ export default function SessionControl({ collapsed }: { collapsed: boolean }) {
         type="button"
         onClick={logout}
         disabled={leaving}
-        className="flex h-6 items-center gap-1.5 rounded border border-line px-2 text-[9px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-gold/60 hover:text-gold disabled:opacity-50"
+        className="flex h-6 items-center gap-1.5 rounded border border-line px-2 text-[9px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-gold/60 hover:text-gold disabled:opacity-50 max-lg:h-10 max-lg:px-3"
       >
         {icon}
         {leaving ? "LOGGING OUT…" : "LOG OUT"}

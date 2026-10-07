@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,19 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "AURELIS",
   description: "Public data intelligence and visualization.",
+};
+
+/**
+ * Mobile: draw under notches (safe-area insets are applied where needed) and
+ * let the on-screen keyboard shrink the layout viewport (dvh), so the SMILEY
+ * composer stays visible where browsers support it.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
+  themeColor: "#04091b",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

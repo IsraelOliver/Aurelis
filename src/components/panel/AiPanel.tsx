@@ -172,14 +172,26 @@ export default function AiPanel({
     if (el && stickToBottom.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
+  // Desktop only: on touch screens focusing would raise the keyboard before the user asks.
   useEffect(() => {
-    inputRef.current?.focus();
+    if (window.matchMedia("(width >= 64rem)").matches) inputRef.current?.focus();
   }, []);
 
   return (
-    <aside aria-label="SMILEY" className="flex w-[420px] max-w-[50vw] shrink-0 flex-col border-l border-line bg-surface">
-      <header className="flex items-start gap-3 border-b border-line px-4 pb-3 pt-4">
-        <div className="min-w-0 flex-1">
+    <aside aria-label="SMILEY" className="flex w-[420px] max-w-[50vw] shrink-0 flex-col border-l border-line bg-surface max-lg:min-h-0 max-lg:w-full max-lg:max-w-none max-lg:flex-1 max-lg:border-l-0">
+      <header className="flex items-start gap-3 border-b border-line px-4 pb-3 pt-4 max-lg:gap-2 max-lg:pl-1.5 max-lg:pt-2">
+        {/* Compact (full-screen SMILEY): BACK returns to the map, which never unmounted. */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Back to map"
+          className="grid size-11 shrink-0 place-items-center rounded text-fg-muted transition-colors hover:text-gold lg:hidden"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M19 12H5M11 6l-6 6 6 6" />
+          </svg>
+        </button>
+        <div className="min-w-0 flex-1 max-lg:pt-2">
           <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.3em] text-fg">
             <span className="text-gold" aria-hidden="true">◇</span>
             SMILEY
@@ -214,7 +226,7 @@ export default function AiPanel({
           }}
           disabled={messages.length === 0}
           title="New conversation (clears this chat only)"
-          className="h-7 shrink-0 rounded border border-line-strong px-2.5 text-[9.5px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-gold/60 hover:text-gold disabled:pointer-events-none disabled:opacity-40"
+          className="h-7 shrink-0 rounded border border-line-strong px-2.5 text-[9.5px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-gold/60 hover:text-gold disabled:pointer-events-none disabled:opacity-40 max-lg:mt-0.5 max-lg:h-11 max-lg:px-3.5"
         >
           NEW
         </button>
@@ -222,7 +234,7 @@ export default function AiPanel({
           type="button"
           onClick={onClose}
           aria-label="Close SMILEY"
-          className="-mr-1 grid size-7 shrink-0 place-items-center rounded text-fg-subtle transition-colors hover:bg-elevated hover:text-fg"
+          className="-mr-1 grid size-7 shrink-0 place-items-center rounded text-fg-subtle transition-colors hover:bg-elevated hover:text-fg max-lg:hidden"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -236,7 +248,7 @@ export default function AiPanel({
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
         }}
-        className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
       >
         {messages.length === 0 ? (
           <div className="flex min-h-full flex-col justify-center gap-6 py-4">
@@ -254,7 +266,7 @@ export default function AiPanel({
                   type="button"
                   onClick={() => ask(s)}
                   disabled={busy}
-                  className="group flex items-center gap-2 rounded border border-deep bg-base/40 px-3 py-2.5 text-left text-[10px] font-medium tracking-[0.18em] text-fg-muted transition-colors hover:border-gold/50 hover:text-fg"
+                  className="group flex items-center gap-2 rounded border border-deep bg-base/40 px-3 py-2.5 max-lg:py-3.5 text-left text-[10px] font-medium tracking-[0.18em] text-fg-muted transition-colors hover:border-gold/50 hover:text-fg"
                 >
                   <span className="text-cyan/70 transition-colors group-hover:text-gold" aria-hidden="true">›</span>
                   {s}
@@ -310,7 +322,7 @@ export default function AiPanel({
                 ask(draft);
               }
             }}
-            className="min-h-6 flex-1 resize-none bg-transparent py-0.5 text-[12.5px] leading-relaxed text-fg outline-none placeholder:text-[10.5px] placeholder:tracking-[0.2em] placeholder:text-fg-subtle"
+            className="min-h-6 flex-1 resize-none bg-transparent py-0.5 text-[12.5px] leading-relaxed text-fg outline-none max-lg:text-[16px] placeholder:text-[10.5px] placeholder:tracking-[0.2em] placeholder:text-fg-subtle"
           />
           {busy ? (
             <button
@@ -318,7 +330,7 @@ export default function AiPanel({
               onClick={chat.stop}
               aria-label="Stop the answer"
               title="Stop"
-              className="flex h-7 shrink-0 items-center gap-1.5 rounded border border-line-strong px-2 text-[9.5px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-gold/60 hover:text-gold"
+              className="flex h-7 shrink-0 items-center gap-1.5 rounded border border-line-strong px-2 text-[9.5px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-gold/60 hover:text-gold max-lg:h-11 max-lg:px-3"
             >
               <span className="size-2 rounded-[1px] bg-current" aria-hidden="true" />
               STOP
@@ -328,7 +340,7 @@ export default function AiPanel({
               type="submit"
               disabled={!canSend}
               aria-label="Send"
-              className={`grid size-7 shrink-0 place-items-center rounded transition-colors ${
+              className={`grid size-7 shrink-0 place-items-center rounded transition-colors max-lg:size-11 ${
                 canSend ? "text-gold hover:bg-elevated" : "text-fg-subtle/50"
               }`}
             >

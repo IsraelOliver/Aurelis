@@ -54,7 +54,11 @@ import {
 } from "@/lib/eonet-filters";
 import Topbar from "@/components/layout/Topbar";
 import Sidebar from "@/components/layout/Sidebar";
-import StatusBar from "@/components/layout/StatusBar";
+import StatusBar, { StatusSummary } from "@/components/layout/StatusBar";
+import MobileDrawer from "@/components/layout/MobileDrawer";
+import PanelDock from "@/components/panel/PanelDock";
+import SmileyDock from "@/components/panel/SmileyDock";
+import { DEFAULT_SHEET_SIZE, SHEET_HEIGHT, type SheetSize } from "@/lib/sheet";
 import MapView from "@/components/map/MapView";
 import EarthquakePanel from "@/components/panel/EarthquakePanel";
 import EonetEventPanel from "@/components/panel/EonetEventPanel";
@@ -150,6 +154,9 @@ export default function Workspace() {
   // SMILEY: its own right-panel view over the current selection (which it keeps as FOCUS).
   const [aiOpen, setAiOpen] = useState(false);
   const aiChat = useAiChat();
+  // Compact layout (below lg) only: navigation drawer and bottom-sheet height. Pure UI state.
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sheetSize, setSheetSize] = useState<SheetSize>("medium");
   const selectedEntityId = panelTarget?.type === "entity" ? panelTarget.entityId : null;
   const selectEntity = useCallback((entityId: string) => {
     setPanelTarget({ type: "entity", entityId });
@@ -430,16 +437,17 @@ export default function Workspace() {
     .join(" · ");
 
   useEffect(() => {
-    if (!panelTarget && !aiOpen) return;
+    if (!panelTarget && !aiOpen && !drawerOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      // SMILEY closes first, back to the panel under it.
-      if (aiOpen) setAiOpen(false);
+      // The drawer closes first, then SMILEY (back to the panel under it), then the panel.
+      if (drawerOpen) setDrawerOpen(false);
+      else if (aiOpen) setAiOpen(false);
       else setPanelTarget(null);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [panelTarget, aiOpen]);
+  }, [panelTarget, aiOpen, drawerOpen]);
 
   // At most one panel: a domain view, or the selected entity (which belongs to exactly one source).
   let panel: React.ReactNode = null;
@@ -616,6 +624,31 @@ export default function Workspace() {
     ...(aiData.weather || cloudsFeed ? ["weather" as const] : []),
     ...(air.snapshot ? ["air" as const] : []),
   ];
+  // A different data panel in the sheet → default height; collapsing keeps the selection.
+  // SMILEY (full screen below lg) does not count: closing it returns the sheet exactly as it was.
+  // Adjusted during render (React's pattern for derived resets).
+  const sheetKey = panelTarget ? (panelTarget.type === "domain" ? panelTarget.domain : panelTarget.entityId) : null;
+  const [sheetKeySeen, setSheetKeySeen] = useState<string | null>(null);
+  if (sheetKey !== sheetKeySeen) {
+    setSheetKeySeen(sheetKey);
+    if (sheetKey) setSheetSize(DEFAULT_SHEET_SIZE);
+  }
+  const sidebarSources = sources.map((s) => ({
+    id: s.id,
+    name: s.name,
+    health: s.state.health,
+    ageMs: s.state.snapshotAgeMs,
+  }));
+  // Earthquakes, the ISS, EONET events and the aircraft of the active global AIR snapshot
+  // (only while AIR is active) are entities; Kp, aurora, solar wind, X-ray and clouds are not.
+  const entityCount =
+    (usgs.snapshot?.entities.length ?? 0) +
+    (iss.snapshot?.entities.length ?? 0) +
+    (eonet.snapshot?.entities.length ?? 0) +
+    (airActive ? (air.snapshot?.aircraft.length ?? 0) : 0);
+  const sourceCount = sources.filter((s) => s.snapshot !== null).length;
+  const activeDomain = !aiOpen && panelTarget?.type === "domain" ? panelTarget.domain : null;
+
   const rightPanel = aiOpen ? (
     <AiPanel
       chat={aiChat}
@@ -630,21 +663,39 @@ export default function Workspace() {
 
   return (
     <>
-      <Topbar health={globalHealth} sourceSummary={sourceSummary} />
+      <Topbar health={globalHealth} sourceSummary={sourceSummary} onOpenMenu={() => setDrawerOpen(true)} />
       <div className="flex min-h-0 flex-1">
         <Sidebar
-          activeDomain={!aiOpen && panelTarget?.type === "domain" ? panelTarget.domain : null}
+          activeDomain={activeDomain}
           onOpenDomain={openDomain}
           aiOpen={aiOpen}
           onToggleAi={() => setAiOpen((open) => !open)}
-          sources={sources.map((s) => ({
-            id: s.id,
-            name: s.name,
-            health: s.state.health,
-            ageMs: s.state.snapshotAgeMs,
-          }))}
+          sources={sidebarSources}
         />
-        <main className="relative min-w-0 flex-1">
+        <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
+          <Sidebar
+            variant="drawer"
+            activeDomain={activeDomain}
+            onOpenDomain={(domain) => {
+              setDrawerOpen(false);
+              openDomain(domain);
+            }}
+            aiOpen={aiOpen}
+            onToggleAi={() => {
+              setDrawerOpen(false);
+              setAiOpen(true);
+            }}
+            sources={sidebarSources}
+            status={<StatusSummary sourceCount={sourceCount} entityCount={entityCount} health={globalHealth} />}
+            onClose={() => setDrawerOpen(false)}
+          />
+        </MobileDrawer>
+        {/* --sheet-offset: how much of the map the compact bottom sheet covers (map controls sit above it). */}
+        <main
+          className="relative min-w-0 flex-1"
+          data-sheet={panel && !aiOpen ? sheetSize : "none"}
+          style={{ "--sheet-offset": panel && !aiOpen ? SHEET_HEIGHT[sheetSize] : "env(safe-area-inset-bottom)" } as React.CSSProperties}
+        >
           <MapView
             earthquakes={usgs.snapshot}
             eonetEvents={eonetInView}
@@ -663,20 +714,18 @@ export default function Workspace() {
             aircraftShown={airActive}
           />
         </main>
-        {rightPanel}
+        {/* Below lg: SMILEY full screen; data panels in the bottom sheet. lg+: both are the side panel. */}
+        {aiOpen ? (
+          <SmileyDock>{rightPanel}</SmileyDock>
+        ) : (
+          rightPanel && (
+            <PanelDock size={sheetSize} onSize={setSheetSize}>
+              {rightPanel}
+            </PanelDock>
+          )
+        )}
       </div>
-      <StatusBar
-        sourceCount={sources.filter((s) => s.snapshot !== null).length}
-        // Earthquakes, the ISS, EONET events and the aircraft of the active global AIR snapshot
-        // (only while AIR is active) are entities; Kp, aurora, solar wind, X-ray and clouds are not.
-        entityCount={
-          (usgs.snapshot?.entities.length ?? 0) +
-          (iss.snapshot?.entities.length ?? 0) +
-          (eonet.snapshot?.entities.length ?? 0) +
-          (airActive ? (air.snapshot?.aircraft.length ?? 0) : 0)
-        }
-        health={globalHealth}
-      />
+      <StatusBar sourceCount={sourceCount} entityCount={entityCount} health={globalHealth} />
     </>
   );
 }

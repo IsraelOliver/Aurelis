@@ -18,7 +18,7 @@ export interface SidebarSource {
 const DOMAIN_PANELS: Record<string, DomainId> = { space: "space", disasters: "disasters", weather: "weather", air: "air" };
 
 const ROW =
-  "group relative flex h-9 w-full items-center gap-3 rounded px-3 text-left text-fg-muted transition-colors hover:bg-elevated hover:text-fg data-[active=true]:bg-deep data-[active=true]:text-fg";
+  "group relative flex w-full items-center gap-3 rounded px-3 text-left text-fg-muted transition-colors hover:bg-elevated hover:text-fg data-[active=true]:bg-deep data-[active=true]:text-fg";
 
 function HealthDot({ health }: { health: SourceHealth }) {
   return (
@@ -35,6 +35,10 @@ function HealthDot({ health }: { health: SourceHealth }) {
  * domain panel. The other rows stay inert, so none pretends to be filtering.
  * Collapsible to an icon rail (session state, not persisted): labels move to
  * tooltips and sources become one health dot each.
+ * Two placements, one implementation: "rail" is the desktop column (`lg` and
+ * up); "drawer" is the same content inside the compact-layout navigation
+ * drawer (full labels, 44 px rows, plus the status line the compact layout
+ * does not show elsewhere).
  */
 export default function Sidebar({
   sources,
@@ -42,6 +46,9 @@ export default function Sidebar({
   onOpenDomain,
   aiOpen,
   onToggleAi,
+  variant = "rail",
+  status,
+  onClose,
 }: {
   sources: SidebarSource[];
   activeDomain: DomainId | null;
@@ -49,19 +56,41 @@ export default function Sidebar({
   /** SMILEY panel open (personal intelligence; separate from the domains). */
   aiOpen: boolean;
   onToggleAi: () => void;
+  variant?: "rail" | "drawer";
+  /** Drawer only: SOURCES / ENTITIES / STATUS line. */
+  status?: React.ReactNode;
+  /** Drawer only. */
+  onClose?: () => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const drawer = variant === "drawer";
+  const [railCollapsed, setCollapsed] = useState(false);
+  const collapsed = !drawer && railCollapsed;
+  const rowHeight = drawer ? "h-11" : "h-9";
 
   return (
     <aside
-      className={`hidden shrink-0 flex-col border-r border-line bg-surface transition-[width] duration-200 md:flex ${
-        collapsed ? "w-14" : "w-56"
-      }`}
+      className={
+        drawer
+          ? "flex h-full w-full flex-col overflow-y-auto overscroll-contain bg-surface"
+          : `hidden shrink-0 flex-col overflow-y-auto overscroll-contain border-r border-line bg-surface transition-[width] duration-200 lg:flex ${collapsed ? "w-14" : "w-56"}`
+      }
     >
-      <div className={`flex h-10 items-center ${collapsed ? "justify-center" : "justify-between pl-4 pr-2"}`}>
+      <div className={`flex shrink-0 items-center ${drawer ? "h-12" : "h-10"} ${collapsed ? "justify-center" : "justify-between pl-4 pr-2"}`}>
         {!collapsed && (
           <span className="text-[10px] font-medium tracking-[0.28em] text-fg-subtle">LAYERS</span>
         )}
+        {drawer ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close navigation"
+            className="grid size-11 place-items-center rounded text-fg-subtle transition-colors hover:bg-elevated hover:text-fg"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        ) : (
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
@@ -74,6 +103,7 @@ export default function Sidebar({
             {collapsed ? <path d="M9 6l6 6-6 6" /> : <path d="M15 6l-6 6 6 6" />}
           </svg>
         </button>
+        )}
       </div>
 
       <ul className="flex flex-col gap-px px-2">
@@ -97,7 +127,7 @@ export default function Sidebar({
               )}
             </>
           );
-          const rowClass = collapsed ? `${ROW} justify-center px-0` : ROW;
+          const rowClass = collapsed ? `${ROW} ${rowHeight} justify-center px-0` : `${ROW} ${rowHeight}`;
           return (
             <li key={category.id}>
               {isDomain ? (
@@ -125,7 +155,7 @@ export default function Sidebar({
       <div className="mt-auto border-t border-line px-2 py-2">
         <button
           type="button"
-          className={collapsed ? `${ROW} justify-center px-0` : ROW}
+          className={collapsed ? `${ROW} ${rowHeight} justify-center px-0` : `${ROW} ${rowHeight}`}
           data-active={aiOpen}
           aria-pressed={aiOpen}
           title={collapsed ? "SMILEY — AURELIS personal intelligence" : "Open SMILEY (AURELIS personal intelligence)"}
@@ -185,7 +215,11 @@ export default function Sidebar({
         </div>
       )}
 
-      <SessionControl collapsed={collapsed} />
+      {status}
+      {/* AUTHORIZED / LOG OUT stays reachable however long the list above grows (short screens). */}
+      <div className="sticky bottom-0 bg-surface">
+        <SessionControl collapsed={collapsed} />
+      </div>
     </aside>
   );
 }

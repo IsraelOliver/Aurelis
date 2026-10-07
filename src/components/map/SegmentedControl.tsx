@@ -27,7 +27,7 @@ export default function SegmentedControl<T extends string>({
             disabled={option.disabled}
             title={option.title}
             onClick={() => onChange(option.value)}
-            className={`h-7 px-3 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+            className={`h-7 px-3 transition-colors disabled:cursor-not-allowed disabled:opacity-40 max-lg:h-11 max-lg:px-3.5 ${
               active ? "bg-deep text-fg" : "text-fg-subtle hover:bg-elevated hover:text-fg-muted"
             }`}
           >

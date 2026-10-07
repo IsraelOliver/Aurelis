@@ -726,6 +726,15 @@ Detalhes em `docs/AUTH_ARCHITECTURE.md`.
 - **Variáveis**: `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (públicas por design). Ausentes → build passa; em runtime, login mostra AUTH UNAVAILABLE e as APIs respondem 503.
 - **Logs**: só `[AUTH] claims check failed: <nome do erro> status=<n>`; nunca senha, tokens, cookies ou cabeçalhos.
 
+### UI — Responsividade mobile (Etapa UI Mobile 1A)
+
+- **Desktop-first preservado.** Uma única fronteira de layout: Tailwind `lg` (1024 px). Em `lg`+ o layout desktop é o de sempre (sidebar, mapa, painel direito, busca, barra de status). Abaixo de `lg`: layout compacto. `md` (768 px) só recolhe a busca num ícone.
+- **Header compacto**: MENU (44×44, abre o drawer) · AURELIS · busca (ícone abaixo de `md`; abre o campo numa segunda linha) · LIVE. A barra de status desktop some; SOURCES / ENTITIES / STATUS ficam no drawer.
+- **Navigation drawer** (`layout/MobileDrawer.tsx`): a mesma `Sidebar` (variante `drawer`), entra pela esquerda (80vw, máx. 20rem) sobre overlay escuro (toque fora / Esc fecha); sempre montado (`inert` fechado), rola, com AUTHORIZED / LOG OUT fixo no rodapé. Escolher um domínio fecha o drawer.
+- **Bottom sheet** (`panel/PanelDock.tsx`) para os painéis de dados (SPACE, WEATHER, DISASTERS, AIR, ISS, terremoto, EONET, aeronave): recolhido (handle + cabeçalho) · médio 48dvh (padrão) · expandido 82dvh, por toque (sem física de arrasto). Alturas em `lib/sheet.ts`; `--sheet-offset` mantém GLOBE/FLAT, MAP/SATELLITE, zoom e atribuição acima do sheet (zoom some no expandido; em telas baixas, todos os controles somem no expandido). Recolher mantém a seleção. Mesmos componentes de painel do desktop (`display: contents` em `lg`+).
+- **SMILEY em tela cheia abaixo de `lg`** (`panel/SmileyDock.tsx`), exceção intencional: conversa transversal, precisa de altura e convive com o teclado virtual. Altura = visual viewport (composer acima do teclado também no iOS), safe areas, BACK (volta ao mapa, que nunca desmonta: câmera, projeção, basemap, seleção, domínio, sheet e conversa preservados), NEW, status. Tablet incluído (mesma regra, layout mais limpo). No desktop continua painel lateral.
+- **Toque e viewport**: alvos ≥ 44 px no compacto; inputs de 16 px (sem zoom automático do iOS); `viewport-fit=cover` + `env(safe-area-inset-*)` em header, drawer, sheet e SMILEY; `interactive-widget=resizes-content`; dashboard com altura `dvh` e sem rolagem de página (só drawer, sheet e conversa rolam). O MapLibre redimensiona pelo próprio ResizeObserver (`trackResize`), sem recriar o mapa.
+
 ### Dívida técnica
 
 - **Saúde da fonte** (*Future source health should model explicit states such as fresh, stale and unavailable instead of source-specific cache heuristics.*): **parcialmente resolvida na 4D** no cliente (`SourceHealth`). O servidor ainda usa a heurística de idade de 120 s específica da rota de terremotos; generalizar quando houver a segunda fonte.
@@ -744,7 +753,7 @@ Detalhes em `docs/AUTH_ARCHITECTURE.md`.
 - **Indicador LIVE neutro (cinza).** Nenhuma fonte ao vivo está conectada, então o indicador não usa verde nem animação — seguindo a regra de não representar o que os dados não comprovam. Tooltip: "No live sources connected".
 - **Sem biblioteca de ícones.** Seis ícones SVG inline bastam.
 - **Tema apenas dark.** Ver "Identidade visual" abaixo.
-- **Sidebar oculta abaixo de `md`**; o mapa ocupa a largura toda em telas menores. Sem interface mobile dedicada.
+- **Sidebar**: coluna desktop em `lg`+; abaixo disso vira o navigation drawer (Etapa UI Mobile 1A).
 - O projeto foi gerado com `create-next-app` (pasta temporária `aurelis`, pois o npm não aceita maiúsculas no nome do pacote) e movido para cá. `AGENTS.md`/`CLAUDE.md`, gerados pelo Next.js, foram removidos do versionamento e estão no `.gitignore`.
 
 ## Funcionalidades implementadas
@@ -765,6 +774,7 @@ Detalhes em `docs/AUTH_ARCHITECTURE.md`.
 - **Raios X solares (NOAA SWPC GOES, primary)**: sétima fonte, fluxo 0.1–0.8 nm atual (observed) + gráfico log de 6 h com bandas A–X e último evento de flare oficial (reported); sem Entity e sem mapa.
 - **Vento solar e IMF (NOAA SWPC RTSW)**: quinta e sexta fontes, medições in situ (observed) do spacecraft ativo: velocidade, densidade, temperatura, IMF Bz (SOUTHWARD/NORTHWARD) e Bt, com gráficos de 6 h no painel SPACE; sem Entity e sem mapa.
 - **Aurora forecast (NOAA SWPC OVATION)**: quarta fonte, forecast de 30–90 min em grade de 1° como layer opcional no mapa (SHOW ON MAP no painel SPACE) + resumo no painel; nature `forecast`, `validAt`; sem Entity.
+- **Mobile**: layout compacto abaixo de 1024 px — header com MENU, navigation drawer, painéis em bottom sheet e SMILEY em tela cheia; alvos de toque de 44 px e safe areas; desktop inalterado.
 - **Acesso privado (Supabase Auth, single-user)**: `/login` → `/app`; sessão em cookies renovada pelo `proxy.ts`; páginas e as 13 APIs validadas no servidor com `getClaims()` (401 sem sessão, zero chamadas upstream); logout na sidebar.
 - **SMILEY (read-only)**: inteligência pessoal do AURELIS via OpenAI Responses API (`gpt-6-luna`, servidor apenas, `store: false`, streaming, sessão só em memória) com Context Router, Domain Capsules, Context Budget, perfil pessoal seletivo (servidor) e telemetria de tokens; interpreta, não é fonte; sem ações, web ou memória persistente.
 - **Seleção de terremoto + Intelligence Panel** (dados e proveniência), destaque dourado do evento selecionado.
@@ -789,7 +799,7 @@ Detalhes em `docs/AUTH_ARCHITECTURE.md`.
 - Tabelas próprias no Supabase/PostgreSQL (e RLS), memória persistente do Smiley, landing/portfolio pública em `/`, recuperação de senha, cadastro, papéis, rate limiting custom.
 - Redis, WebSockets, filas, Docker, backend de ingestão, PWA, Tauri.
 - Testes automatizados.
-- Interface mobile dedicada.
+- PWA, modo offline, gestos de arrasto no sheet.
 
 ## Comandos
 
@@ -840,3 +850,4 @@ npm start
 2026-10-07 16:45 | lib/ai/{types,context,system-prompt,openai,chat-handler}.ts, app/api/ai/chat, components/{useAiChat,Workspace}.tsx, panel/{AiPanel,AiMarkdown}.tsx, layout/Sidebar, docs/AI_ARCHITECTURE.md | Etapa AI 1A: AURELIS AI read-only. OpenAI Responses API (SDK openai 7.30.0) só no servidor, gpt-6-luna (override AURELIS_AI_MODEL), stream, store:false, reasoning low, 2000 tokens, timeout 90 s, sem retries; contexto compacto determinístico (~15 KB; AIR só contagens; sem grades/GeoJSON/trilhas) como dado não confiável; sessão em memória (12 mensagens), STOP/NEW; erros sanitizados; item AURELIS AI na sidebar e painel próprio. A IA não é fonte. Testes: 10 puros + 8 de rota (mocks), 1 chamada real mínima, smoke no navegador.
 2026-10-07 18:00 | lib/ai/{types,router,capsules,context,personal,profile,attention,system-prompt,openai,chat-handler}.ts, app/api/ai/chat, components/{useAiChat,Workspace}.tsx, panel/{AiPanel,AiMarkdown}.tsx, layout/Sidebar, docs/AI_ARCHITECTURE.md | Etapa AI 1B: AURELIS AI → SMILEY (AURELIS Personal Intelligence). Context Router determinístico, Domain Capsules, Context Budget por intent, perfil pessoal estruturado só no servidor com recuperação seletiva (origin user_stated/observed/inferred), fundação do Attention Engine (6 capacidades preparadas), janela de 8 mensagens, prompt compacto, telemetria por resposta e de sessão. "Olá" 5.665 → 398 tokens de entrada. Ligação de view do mapa (1A) removida: o contexto não usa mais câmera/projeção.
 2026-10-07 19:10 | proxy.ts, lib/supabase/{env,client,server,proxy}.ts, lib/{auth,auth-core}.ts, app/{page,app/page,login/page,login/LoginScreen}.tsx, app/api/** (13 handlers), layout/{Sidebar,SessionControl}.tsx, docs/AUTH_ARCHITECTURE.md | Etapa AUTH 1A: acesso privado single-user com Supabase Auth (@supabase/ssr, sessão em cookies, proxy.ts do Next 16 só para refresh, autorização com getClaims no servidor). Dashboard movido de / para /app; / redireciona (/app ou /login); /login com identidade AURELIS; 13 Route Handlers exigem sessão antes de qualquer upstream (401 UNAUTHORIZED); logout na sidebar. Sem service_role, sem tabelas, sem sign-up.
+2026-10-07 21:40 | lib/sheet.ts, layout/{Topbar,Sidebar,MobileDrawer,StatusBar,SessionControl}.tsx, panel/{PanelDock,SmileyDock,AiPanel,AiMarkdown,primitives,IssCamera,EonetEventPanel}.tsx, map/{MapView,SegmentedControl}.tsx, Workspace.tsx, app/{layout,login/LoginScreen}.tsx, globals.css | Etapa UI Mobile 1A: layout compacto abaixo de lg (header com MENU e busca recolhível, navigation drawer com logout fixo, bottom sheet de 3 alturas para painéis de dados, SMILEY em tela cheia com altura da visual viewport e BACK que preserva o mapa), alvos de 44 px, safe areas, viewport-fit=cover. Corrigidos: logout cortado na sidebar desktop em telas baixas (agora rola com rodapé fixo) e rolagem indevida da página por sr-only sem ancestral posicionado. Desktop inalterado; nenhuma lógica de dados, AIR, auth ou SMILEY alterada.

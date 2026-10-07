@@ -99,7 +99,7 @@ export default function MapView({
         aircraft={aircraft}
         aircraftShown={aircraftShown}
       />
-      <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-end gap-2">
+      <div className="aurelis-map-controls absolute bottom-3 left-3 z-10 flex flex-wrap items-end gap-2 transition-[bottom] duration-200 max-lg:bottom-[calc(var(--sheet-offset,0px)+0.75rem)] max-lg:left-[max(0.75rem,env(safe-area-inset-left))] max-lg:max-w-[calc(100%-5rem)]">
         <SegmentedControl
           label="Map projection"
           value={projection}

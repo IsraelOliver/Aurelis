@@ -57,7 +57,7 @@ function Field({
       <input
         id={id}
         {...input}
-        className="h-10 rounded border border-line-strong bg-base px-3 text-[13px] text-fg outline-none transition-colors placeholder:text-fg-subtle/60 focus:border-cyan/60 disabled:opacity-60"
+        className="h-10 rounded border border-line-strong bg-base px-3 text-[13px] text-fg outline-none max-md:h-11 max-md:text-[16px] transition-colors placeholder:text-fg-subtle/60 focus:border-cyan/60 disabled:opacity-60"
       />
     </label>
   );
@@ -103,7 +103,7 @@ export default function LoginScreen({ unavailable }: { unavailable: boolean }) {
   }
 
   return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-base px-4 py-10">
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-base px-4 py-10 [@media(height<32rem)]:py-4">
       {/* Technical grid + stars + globe: background only */}
       <div
         aria-hidden="true"
@@ -117,8 +117,8 @@ export default function LoginScreen({ unavailable }: { unavailable: boolean }) {
       <Globe className="pointer-events-none absolute left-1/2 top-1/2 hidden w-[980px] max-w-none -translate-x-1/2 -translate-y-1/2 opacity-45 md:block" />
 
       <section className="relative z-10 w-full max-w-[400px]">
-        <header className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4">
+        <header className="mb-8 flex flex-col items-center text-center [@media(height<32rem)]:mb-4">
+          <div className="mb-4 [@media(height<32rem)]:hidden">
             <Mark />
           </div>
           <p className="flex items-center gap-3">

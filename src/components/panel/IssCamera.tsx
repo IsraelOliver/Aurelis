@@ -1,7 +1,7 @@
 import type { IssMediaSource } from "@/lib/sources/nasa/iss-media";
 
 const BUTTON =
-  "flex h-8 items-center justify-center gap-2 rounded border text-[10px] font-medium tracking-[0.2em] transition-colors";
+  "relative flex h-8 items-center justify-center gap-2 rounded border text-[10px] font-medium tracking-[0.2em] transition-colors";
 
 /**
  * Official NASA stream for the ISS, inside the ISS panel. The iframe exists
