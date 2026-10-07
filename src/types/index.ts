@@ -14,3 +14,4 @@ export type * from "./xray";
 export type * from "./eonet";
 export type * from "./weather";
 export type * from "./clouds";
+export type * from "./air";

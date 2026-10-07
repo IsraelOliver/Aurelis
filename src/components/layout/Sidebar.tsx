@@ -14,7 +14,7 @@ export interface SidebarSource {
 }
 
 /** Categories that open a domain panel (global, non-geographic data). */
-const DOMAIN_PANELS: Record<string, DomainId> = { space: "space", disasters: "disasters", weather: "weather" };
+const DOMAIN_PANELS: Record<string, DomainId> = { space: "space", disasters: "disasters", weather: "weather", air: "air" };
 
 const ROW =
   "group relative flex h-9 w-full items-center gap-3 rounded px-3 text-left text-fg-muted transition-colors hover:bg-elevated hover:text-fg data-[active=true]:bg-deep data-[active=true]:text-fg";
@@ -29,8 +29,8 @@ function HealthDot({ health }: { health: SourceHealth }) {
 }
 
 /**
- * Layer list. Categories are not wired to filters yet. SPACE, WEATHER and
- * DISASTERS open their domain panels; `data-active` (gold bar + deep blue) marks the open
+ * Layer list. Categories are not wired to filters yet. AIR, SPACE, WEATHER
+ * and DISASTERS open their domain panels; `data-active` (gold bar + deep blue) marks the open
  * domain panel. The other rows stay inert, so none pretends to be filtering.
  * Collapsible to an icon rail (session state, not persisted): labels move to
  * tooltips and sources become one health dot each.

@@ -4,7 +4,7 @@
  * changes SourceHealth, snapshots, Entities, Observations, SOURCES or ENTITIES.
  * Only layers that exist are listed. Session state, not persisted.
  */
-export type MapLayerId = "earthquakes" | "eonet" | "aurora" | "clouds";
+export type MapLayerId = "earthquakes" | "eonet" | "aurora" | "clouds" | "aircraft";
 
 export type MapLayerVisibility = Record<MapLayerId, boolean>;
 
@@ -17,4 +17,6 @@ export const DEFAULT_LAYER_VISIBILITY: MapLayerVisibility = {
   aurora: false,
   // NOAA GFS model cloud cover: off until SHOW ON MAP (nothing fetched before).
   clouds: false,
+  // OpenSky aircraft: off until AIR is first opened, then on (HIDE/SHOW after; hidden = no polling).
+  aircraft: false,
 };

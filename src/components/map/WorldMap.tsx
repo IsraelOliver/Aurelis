@@ -19,7 +19,7 @@ import { IMAGERY_SOURCE_ID, addImageryLayer, applyBasemapMode } from "./basemap-
 import { ISS_ENTITY_ID } from "@/lib/sources/wtia/source";
 import { VISUAL_DELAY_MS, interpolatePosition } from "@/lib/iss-interpolation";
 import { orbitTrailStrips, type TrailPoint } from "@/lib/iss-trail";
-import type { AuroraForecastFeed, EarthquakeFeed, EonetEventObservation, IssFeed } from "@/types";
+import type { AirTrafficFeed, AuroraForecastFeed, EarthquakeFeed, EonetEventObservation, IssFeed } from "@/types";
 import type { MapLayerVisibility } from "@/lib/map-layers";
 import {
   EONET_INTERACTIVE_LAYERS,
@@ -32,6 +32,13 @@ import { addAuroraLayer, setAuroraCells, setAuroraVisible } from "./aurora-layer
 import { addWeatherPointLayer, setWeatherPoint } from "./weather-point-layer";
 import { addCloudLayer, setCloudGrid, setCloudsVisible, type CloudGrid } from "./cloud-layer";
 import {
+  addAircraftLayer,
+  pickAircraft,
+  setAircraftFeed,
+  setAircraftVisible,
+  setSelectedAircraft,
+} from "./aircraft-layer";
+import {
   EARTHQUAKES_LAYER_ID,
   addEarthquakeLayer,
   setEarthquakeData,
@@ -40,6 +47,7 @@ import {
 } from "./earthquake-layer";
 import {
   ISS_INTERACTIVE_LAYERS,
+  ISS_TRAIL_LAYER_ID,
   addIssLayer,
   isIssOrbitTrailActive,
   setIssMarker,
@@ -51,8 +59,23 @@ import {
 
 setWorkerUrl(MAPLIBRE_WORKER_URL);
 
-/** Clickable data layers, top-most first: ISS, earthquakes, then EONET events. */
-const INTERACTIVE_LAYERS = [...ISS_INTERACTIVE_LAYERS, EARTHQUAKES_LAYER_ID, ...EONET_INTERACTIVE_LAYERS];
+/** Clickable data layers below the aircraft, top-most first: earthquakes, then EONET events. */
+const INTERACTIVE_LAYERS = [EARTHQUAKES_LAYER_ID, ...EONET_INTERACTIVE_LAYERS];
+
+/**
+ * Entity under a screen point, by priority: ISS, aircraft (custom WebGL layer,
+ * picked on the CPU), earthquakes, EONET.
+ */
+function entityAt(map: MapLibreMap, point: { x: number; y: number }): string | null {
+  const [iss] = map.queryRenderedFeatures([point.x, point.y], { layers: ISS_INTERACTIVE_LAYERS });
+  const issId = iss?.properties?.entityId;
+  if (typeof issId === "string") return issId;
+  const aircraftId = pickAircraft(map, point.x, point.y);
+  if (aircraftId) return aircraftId;
+  const [feature] = map.queryRenderedFeatures([point.x, point.y], { layers: INTERACTIVE_LAYERS });
+  const id = feature?.properties?.entityId;
+  return typeof id === "string" ? id : null;
+}
 
 /**
  * World map. Browser-only: imported through MapView with ssr: false,
@@ -78,6 +101,8 @@ export default function WorldMap({
   weatherPoint,
   onPickWeatherPoint,
   cloudGrid,
+  aircraft,
+  aircraftShown,
 }: {
   earthquakes: EarthquakeFeed | null;
   /** NASA EONET events in the current view (already filtered; latest geometry drawn). */
@@ -104,6 +129,10 @@ export default function WorldMap({
   onPickWeatherPoint: (point: { latitude: number; longitude: number }) => void;
   /** NOAA GFS cloud cover field (kept while hidden), or null before the first load. */
   cloudGrid: CloudGrid | null;
+  /** Latest global AIR snapshot and when it was received (kept while paused), or null. */
+  aircraft: { feed: AirTrafficFeed; receivedAtMs: number } | null;
+  /** AIR active and aircraft shown (otherwise not drawn). */
+  aircraftShown: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -170,16 +199,15 @@ export default function WorldMap({
       addCloudLayer(map); // directly below the aurora
       addEonetLayer(map);
       addWeatherPointLayer(map);
+      // Above earthquakes/EONET, below the ISS (its trail and marker).
+      addAircraftLayer(map, map.getLayer(ISS_TRAIL_LAYER_ID) ? ISS_TRAIL_LAYER_ID : undefined);
 
       // One handler for all data layers: the top-most feature wins. Entities
       // always take priority; only a click on no selectable feature picks a
       // weather point (MapLibre does not fire "click" after a drag or zoom).
       map.on("click", (event) => {
-        const [feature] = map.queryRenderedFeatures(event.point, {
-          layers: INTERACTIVE_LAYERS,
-        });
-        const entityId = feature?.properties?.entityId;
-        if (typeof entityId === "string") onSelectRef.current(entityId);
+        const entityId = entityAt(map, event.point);
+        if (entityId !== null) onSelectRef.current(entityId);
         else if (weatherModeRef.current) {
           // Longitude wrapped to −180..180 (same position on the globe).
           const { lat, lng } = event.lngLat.wrap();
@@ -187,8 +215,8 @@ export default function WorldMap({
         }
       });
       map.on("mousemove", (event) => {
-        const hit = map.queryRenderedFeatures(event.point, { layers: INTERACTIVE_LAYERS });
-        map.getCanvas().style.cursor = hit.length > 0 ? "pointer" : weatherModeRef.current ? "crosshair" : "";
+        const hit = entityAt(map, event.point) !== null;
+        map.getCanvas().style.cursor = hit ? "pointer" : weatherModeRef.current ? "crosshair" : "";
       });
 
       setStyleReady(true);
@@ -245,6 +273,12 @@ export default function WorldMap({
     mapRef.current.getCanvas().style.cursor = weatherMode ? "crosshair" : "";
   }, [styleReady, weatherMode, weatherPoint]);
 
+  // Each AIR snapshot becomes the drawn collection; the layer interpolates visually between
+  // real positions (no React per frame, no trails, no extrapolation).
+  useEffect(() => {
+    if (styleReady && mapRef.current && aircraft) setAircraftFeed(mapRef.current, aircraft.feed, aircraft.receivedAtMs);
+  }, [styleReady, aircraft]);
+
   useEffect(() => {
     if (styleReady && mapRef.current) {
       setEonetData(mapRef.current, eonetEvents);
@@ -261,8 +295,9 @@ export default function WorldMap({
     if (styleReady && mapRef.current) {
       setEarthquakesVisible(mapRef.current, earthquakesVisible);
       setEonetVisible(mapRef.current, eonetVisible);
+      setAircraftVisible(mapRef.current, aircraftShown);
     }
-  }, [styleReady, earthquakesVisible, eonetVisible]);
+  }, [styleReady, earthquakesVisible, eonetVisible, aircraftShown]);
 
   // Clouds: a new field is uploaded only when its id changes (atomic texture swap
   // inside a frame); hiding only stops drawing. Projection/basemap changes do not touch it.
@@ -375,6 +410,7 @@ export default function WorldMap({
     if (styleReady && mapRef.current) {
       setSelectedEarthquake(mapRef.current, selectedEntityId);
       setSelectedEonet(mapRef.current, selectedEntityId);
+      setSelectedAircraft(mapRef.current, selectedEntityId);
       setIssSelected(mapRef.current, selectedEntityId === ISS_ENTITY_ID);
     }
   }, [styleReady, selectedEntityId]);

@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  AirTrafficFeed,
   AuroraForecastFeed,
   EarthquakeFeed,
   WeatherPointFeed,
@@ -22,6 +23,7 @@ import {
   NOAA_XRAY_SYNC,
   OPEN_METEO_SYNC,
   NOAA_GFS_CLOUDS_SYNC,
+  OPENSKY_SYNC,
   USGS_SYNC,
   aggregateHealth,
   deriveHealth,
@@ -31,6 +33,9 @@ import { USGS_EARTHQUAKES_SOURCE } from "@/lib/sources/usgs/source";
 import { ISS_ENTITY_ID, WTIA_ISS_SOURCE } from "@/lib/sources/wtia/source";
 import { EONET_ENTITY_PREFIX, NASA_EONET_SOURCE } from "@/lib/sources/nasa/eonet-source";
 import { OPEN_METEO_SOURCE } from "@/lib/sources/open-meteo/source";
+import { AIRCRAFT_ENTITY_PREFIX, OPENSKY_AIRCRAFT_SOURCE } from "@/lib/sources/opensky/source";
+import { ROW, rowToAircraft } from "@/lib/sources/opensky/rows";
+import { isAirActive } from "@/lib/air-policy";
 import {
   NOAA_SWPC_KP_SOURCE,
   NOAA_SWPC_OVATION_SOURCE,
@@ -55,10 +60,13 @@ import EarthquakePanel from "@/components/panel/EarthquakePanel";
 import EonetEventPanel from "@/components/panel/EonetEventPanel";
 import DisastersPanel from "@/components/panel/DisastersPanel";
 import WeatherPanel from "@/components/panel/WeatherPanel";
+import AirPanel from "@/components/panel/AirPanel";
+import AircraftPanel from "@/components/panel/AircraftPanel";
 import IssPanel from "@/components/panel/IssPanel";
 import SpaceWeatherPanel from "@/components/panel/SpaceWeatherPanel";
 import { useSourceSync, type SourceSync } from "./useSourceSync";
 import { useCloudCover } from "./useCloudCover";
+import { useAirTraffic } from "./useAirTraffic";
 import { NOAA_GFS_CLOUDS_SOURCE } from "@/lib/sources/noaa/gfs-source";
 
 /** Display clock for relative times and freshness; never triggers a fetch. */
@@ -106,7 +114,7 @@ export type PanelTarget =
   | { type: "domain"; domain: DomainId };
 
 /** Sidebar domains that open a domain panel. */
-export type DomainId = "space" | "disasters" | "weather";
+export type DomainId = "space" | "disasters" | "weather" | "air";
 
 /** Weather query point: clicked coordinate rounded to 5 decimals (~1 m), longitude wrapped. */
 type WeatherPoint = { latitude: number; longitude: number };
@@ -232,16 +240,19 @@ export default function Workspace() {
   // Map layer visibility: rendering/interaction only (session state, not persisted).
   // Data keeps syncing; entities, observations and health are unaffected.
   const [layerVisibility, setLayerVisibility] = useState<MapLayerVisibility>(DEFAULT_LAYER_VISIBILITY);
-  /** Entity prefix of each layer whose selection must close when the layer is hidden. */
-  const selectionOwner: Partial<Record<MapLayerId, (entityId: string) => boolean>> = {
-    earthquakes: (id) => id.startsWith("earthquake:"),
-    eonet: (id) => id.startsWith(EONET_ENTITY_PREFIX),
+  /** Per layer: which selected entities it owns and the domain summary to return to when it is hidden. */
+  const selectionOwner: Partial<Record<MapLayerId, { owns: (entityId: string) => boolean; domain: DomainId }>> = {
+    earthquakes: { owns: (id) => id.startsWith("earthquake:"), domain: "disasters" },
+    eonet: { owns: (id) => id.startsWith(EONET_ENTITY_PREFIX), domain: "disasters" },
+    aircraft: { owns: (id) => id.startsWith(AIRCRAFT_ENTITY_PREFIX), domain: "air" },
   };
   const setLayers = (next: Partial<MapLayerVisibility>) => {
     const hidden = (Object.keys(next) as MapLayerId[]).filter((id) => next[id] === false);
-    const owned = panelTarget?.type === "entity" && hidden.some((id) => selectionOwner[id]?.(panelTarget.entityId));
-    // A selected entity that is no longer drawn: back to the DISASTERS summary.
-    if (owned) setPanelTarget({ type: "domain", domain: "disasters" });
+    const owner = hidden.map((id) => selectionOwner[id]).find(
+      (o) => o && panelTarget?.type === "entity" && o.owns(panelTarget.entityId),
+    );
+    // A selected entity that is no longer drawn: back to its domain summary.
+    if (owner) setPanelTarget({ type: "domain", domain: owner.domain });
     // Functional merge: never overwrite other layers with a stale render's values.
     setLayerVisibility((prev) => ({ ...prev, ...next }));
   };
@@ -254,6 +265,32 @@ export default function Workspace() {
   const pickWeatherPoint = useCallback((p: WeatherPoint) => {
     setWeatherPoint({ latitude: round5(p.latitude), longitude: round5(p.longitude) });
   }, []);
+  // AIR (OpenSky, GLOBAL): one /states/all snapshot, refreshed only while AIR is active —
+  // AIR panel or a selected aircraft open, and aircraft shown. Elsewhere (or hidden) polling
+  // pauses to save quota; the last snapshot is kept and shown again at once on return.
+  const airDomainOpen =
+    (panelTarget?.type === "domain" && panelTarget.domain === "air") ||
+    (panelTarget?.type === "entity" && panelTarget.entityId.startsWith(AIRCRAFT_ENTITY_PREFIX));
+  const airActive = isAirActive(airDomainOpen, layerVisibility.aircraft);
+  const onAirSnapshot = useCallback((feed: AirTrafficFeed) => {
+    // A selected aircraft absent from the new snapshot: back to the AIR summary (no claim about why).
+    setPanelTarget((target) => {
+      if (target?.type !== "entity" || !target.entityId.startsWith(AIRCRAFT_ENTITY_PREFIX)) return target;
+      const icao24 = target.entityId.slice(AIRCRAFT_ENTITY_PREFIX.length);
+      return feed.aircraft.some((row) => row[ROW.icao24] === icao24) ? target : { type: "domain", domain: "air" };
+    });
+  }, []);
+  const air = useAirTraffic(airActive, onAirSnapshot);
+  const firstAirOpen = useRef(true);
+  const openDomain = (domain: DomainId) => {
+    // First AIR visit of the session: aircraft are shown (then HIDE/SHOW is the user's).
+    if (domain === "air" && firstAirOpen.current) {
+      firstAirOpen.current = false;
+      setLayerVisibility((v) => ({ ...v, aircraft: true }));
+    }
+    setPanelTarget({ type: "domain", domain });
+  };
+
   const weather = useSourceSync<WeatherPointFeed>(
     weatherPoint ? `/api/weather/forecast?lat=${weatherPoint.latitude}&lon=${weatherPoint.longitude}` : null,
     OPEN_METEO_SYNC.pollIntervalMs,
@@ -295,6 +332,30 @@ export default function Workspace() {
   const xrayState = toSyncState(NOAA_SWPC_GOES_XRAY_SOURCE.id, xray, NOAA_XRAY_SYNC, now);
   const eonetState = toSyncState(NASA_EONET_SOURCE.id, eonet, NASA_EONET_SYNC, now);
   const weatherState = toSyncState(OPEN_METEO_SOURCE.id, weather, OPEN_METEO_SYNC, now);
+  // Paused polling is not staleness: health is only evaluated while AIR is active, and a
+  // cached snapshot waits for the first refresh of this activation ("syncing").
+  const airAgeMs = air.snapshot ? Math.max(0, now - Date.parse(air.snapshot.metadata.ingestedAt)) : null;
+  const airState = {
+    sourceId: OPENSKY_AIRCRAFT_SOURCE.id,
+    health:
+      air.snapshot && !air.refreshedSinceActivation && !air.lastAttemptFailed
+        ? ("syncing" as const)
+        : deriveHealth({
+            hasSnapshot: air.snapshot !== null,
+            attempted: air.attempted,
+            lastAttemptFailed: air.lastAttemptFailed,
+            snapshotAgeMs: airAgeMs,
+            freshnessWindowMs: OPENSKY_SYNC.freshnessWindowMs,
+          }),
+    lastAttemptAt: air.lastAttemptAt,
+    lastSuccessAt: air.lastSuccessAt,
+    lastIngestedAt: air.snapshot?.metadata.ingestedAt,
+    snapshotAgeMs: airAgeMs,
+  };
+  const airLayerData = useMemo(
+    () => (air.snapshot && air.receivedAtMs !== null ? { feed: air.snapshot, receivedAtMs: air.receivedAtMs } : null),
+    [air.snapshot, air.receivedAtMs],
+  );
 
   // CLOUDS (NOAA GFS model field): fetched only while the layer is shown; the last
   // field is kept for the session. Health = |now − validAt| of the field on the map
@@ -342,6 +403,10 @@ export default function Workspace() {
     ...(weatherPoint
       ? [{ id: OPEN_METEO_SOURCE.id, name: OPEN_METEO_SOURCE.name, state: weatherState, snapshot: weather.snapshot }]
       : []),
+    // Active-domain: only while AIR is active (paused polling is neither listed nor counted).
+    ...(airActive
+      ? [{ id: OPENSKY_AIRCRAFT_SOURCE.id, name: OPENSKY_AIRCRAFT_SOURCE.name, state: airState, snapshot: air.snapshot }]
+      : []),
     // On-demand: only while the cloud layer is shown and a valid field exists.
     ...(layerVisibility.clouds && cloudsFeed
       ? [{ id: NOAA_GFS_CLOUDS_SOURCE.id, name: NOAA_GFS_CLOUDS_SOURCE.name, state: cloudsState, snapshot: cloudsFeed }]
@@ -380,6 +445,20 @@ export default function Workspace() {
           failed: clouds.lastAttemptFailed,
         }}
         onToggleClouds={() => toggleLayer("clouds")}
+        onClose={close}
+      />
+    );
+  } else if (panelTarget?.type === "domain" && panelTarget.domain === "air") {
+    panel = (
+      <AirPanel
+        feed={air.snapshot}
+        health={airState.health}
+        failed={air.lastAttemptFailed}
+        refreshing={air.snapshot !== null && !air.refreshedSinceActivation && layerVisibility.aircraft}
+        aircraftVisible={layerVisibility.aircraft}
+        quotaLow={air.quotaLow}
+        onToggleAircraft={() => toggleLayer("aircraft")}
+        onRefreshOnce={air.refreshOnce}
         onClose={close}
       />
     );
@@ -449,6 +528,25 @@ export default function Workspace() {
         />
       );
     }
+  } else if (selectedEntityId?.startsWith(AIRCRAFT_ENTITY_PREFIX) && air.snapshot) {
+    // The panel always shows the latest REAL state (never the interpolated map position).
+    const icao24 = selectedEntityId.slice(AIRCRAFT_ENTITY_PREFIX.length);
+    const row = air.snapshot.aircraft.find((r) => r[ROW.icao24] === icao24);
+    const aircraft = row && rowToAircraft(row, air.snapshot.metadata.stateTime, air.snapshot.metadata.ingestedAt);
+    if (aircraft) {
+      const { entity, observation } = aircraft;
+      panel = (
+        <AircraftPanel
+          key={entity.id}
+          entity={entity}
+          observation={observation}
+          source={air.snapshot.source}
+          sourceHealth={airState.health}
+          onHideAircraft={() => setLayers({ aircraft: false })}
+          onClose={close}
+        />
+      );
+    }
   } else if (selectedEntityId && usgs.snapshot) {
     const entity = usgs.snapshot.entities.find((e) => e.id === selectedEntityId);
     const observation = usgs.snapshot.observations.find((o) => o.entityId === selectedEntityId);
@@ -473,7 +571,7 @@ export default function Workspace() {
       <div className="flex min-h-0 flex-1">
         <Sidebar
           activeDomain={panelTarget?.type === "domain" ? panelTarget.domain : null}
-          onOpenDomain={(domain) => setPanelTarget({ type: "domain", domain })}
+          onOpenDomain={openDomain}
           sources={sources.map((s) => ({
             id: s.id,
             name: s.name,
@@ -496,17 +594,21 @@ export default function Workspace() {
             weatherPoint={weatherPoint}
             onPickWeatherPoint={pickWeatherPoint}
             cloudGrid={cloudGrid}
+            aircraft={airLayerData}
+            aircraftShown={airActive}
           />
         </main>
         {panel}
       </div>
       <StatusBar
         sourceCount={sources.filter((s) => s.snapshot !== null).length}
-        // Earthquakes, the ISS and EONET events are entities; Kp, aurora, solar wind and X-ray are not.
+        // Earthquakes, the ISS, EONET events and the aircraft of the active global AIR snapshot
+        // (only while AIR is active) are entities; Kp, aurora, solar wind, X-ray and clouds are not.
         entityCount={
           (usgs.snapshot?.entities.length ?? 0) +
           (iss.snapshot?.entities.length ?? 0) +
-          (eonet.snapshot?.entities.length ?? 0)
+          (eonet.snapshot?.entities.length ?? 0) +
+          (airActive ? (air.snapshot?.aircraft.length ?? 0) : 0)
         }
         health={globalHealth}
       />

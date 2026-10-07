@@ -1,6 +1,7 @@
 "use client";
 
 import type { CloudGrid } from "./cloud-layer";
+import type { AirTrafficFeed } from "@/types";
 import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import type { AuroraForecastFeed, EarthquakeFeed, EonetEventObservation, IssFeed } from "@/types";
@@ -38,6 +39,8 @@ export default function MapView({
   weatherPoint,
   onPickWeatherPoint,
   cloudGrid,
+  aircraft,
+  aircraftShown,
 }: {
   earthquakes: EarthquakeFeed | null;
   eonetEvents: EonetEventObservation[];
@@ -52,6 +55,8 @@ export default function MapView({
   weatherPoint: { latitude: number; longitude: number } | null;
   onPickWeatherPoint: (point: { latitude: number; longitude: number }) => void;
   cloudGrid: CloudGrid | null;
+  aircraft: { feed: AirTrafficFeed; receivedAtMs: number } | null;
+  aircraftShown: boolean;
 }) {
   // Two independent session states (not persisted): projection and basemap.
   const [projection, setProjection] = useState<ProjectionMode>(DEFAULT_PROJECTION);
@@ -91,6 +96,8 @@ export default function MapView({
         weatherPoint={weatherPoint}
         onPickWeatherPoint={onPickWeatherPoint}
         cloudGrid={cloudGrid}
+        aircraft={aircraft}
+        aircraftShown={aircraftShown}
       />
       <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-end gap-2">
         <SegmentedControl

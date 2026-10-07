@@ -87,6 +87,14 @@ export const OPEN_METEO_SYNC: SyncConfig = { pollIntervalMs: 10 * 60_000, freshn
  */
 export const NOAA_GFS_CLOUDS_SYNC: SyncConfig = { pollIntervalMs: 30 * 60_000, freshnessWindowMs: 90 * 60_000 };
 
+/**
+ * OpenSky aircraft (global, only while AIR is active): one /states/all request
+ * every 30 s (4 credits) while AIR is open and aircraft shown; paused otherwise.
+ * Fresh while the last snapshot is at most two refreshes + 30 s old. Paused
+ * polling is not evaluated (not listed). AURELIS policy, not an OpenSky SLA.
+ */
+export const OPENSKY_SYNC: SyncConfig = { pollIntervalMs: 30_000, freshnessWindowMs: 90_000 };
+
 export function deriveHealth(input: {
   hasSnapshot: boolean;
   attempted: boolean;
