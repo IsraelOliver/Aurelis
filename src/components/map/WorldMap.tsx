@@ -30,6 +30,7 @@ import {
 } from "./eonet-layer";
 import { addAuroraLayer, setAuroraCells, setAuroraVisible } from "./aurora-layer";
 import { addWeatherPointLayer, setWeatherPoint } from "./weather-point-layer";
+import { addCloudLayer, setCloudGrid, setCloudsVisible, type CloudGrid } from "./cloud-layer";
 import {
   EARTHQUAKES_LAYER_ID,
   addEarthquakeLayer,
@@ -76,6 +77,7 @@ export default function WorldMap({
   weatherMode,
   weatherPoint,
   onPickWeatherPoint,
+  cloudGrid,
 }: {
   earthquakes: EarthquakeFeed | null;
   /** NASA EONET events in the current view (already filtered; latest geometry drawn). */
@@ -100,6 +102,8 @@ export default function WorldMap({
   /** Point being inspected (drawn only in weather mode). */
   weatherPoint: { latitude: number; longitude: number } | null;
   onPickWeatherPoint: (point: { latitude: number; longitude: number }) => void;
+  /** NOAA GFS cloud cover field (kept while hidden), or null before the first load. */
+  cloudGrid: CloudGrid | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -163,6 +167,7 @@ export default function WorldMap({
       addEarthquakeLayer(map);
       addIssLayer(map);
       addAuroraLayer(map);
+      addCloudLayer(map); // directly below the aurora
       addEonetLayer(map);
       addWeatherPointLayer(map);
 
@@ -246,13 +251,27 @@ export default function WorldMap({
     }
   }, [styleReady, eonetEvents]);
 
-  const { earthquakes: earthquakesVisible, eonet: eonetVisible, aurora: auroraVisible } = layerVisibility;
+  const {
+    earthquakes: earthquakesVisible,
+    eonet: eonetVisible,
+    aurora: auroraVisible,
+    clouds: cloudsVisible,
+  } = layerVisibility;
   useEffect(() => {
     if (styleReady && mapRef.current) {
       setEarthquakesVisible(mapRef.current, earthquakesVisible);
       setEonetVisible(mapRef.current, eonetVisible);
     }
   }, [styleReady, earthquakesVisible, eonetVisible]);
+
+  // Clouds: a new field is uploaded only when its id changes (atomic texture swap
+  // inside a frame); hiding only stops drawing. Projection/basemap changes do not touch it.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!styleReady || !map) return;
+    if (cloudsVisible && cloudGrid) setCloudGrid(map, cloudGrid);
+    setCloudsVisible(map, cloudsVisible && Boolean(cloudGrid));
+  }, [styleReady, cloudGrid, cloudsVisible]);
 
   // Aurora grid: uploaded only while visible and only when the forecast changes (the
   // layer ignores an already-loaded forecast id). Hiding only stops drawing; the

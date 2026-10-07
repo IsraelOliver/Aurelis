@@ -21,6 +21,7 @@ import {
   NOAA_RTSW_SYNC,
   NOAA_XRAY_SYNC,
   OPEN_METEO_SYNC,
+  NOAA_GFS_CLOUDS_SYNC,
   USGS_SYNC,
   aggregateHealth,
   deriveHealth,
@@ -57,6 +58,8 @@ import WeatherPanel from "@/components/panel/WeatherPanel";
 import IssPanel from "@/components/panel/IssPanel";
 import SpaceWeatherPanel from "@/components/panel/SpaceWeatherPanel";
 import { useSourceSync, type SourceSync } from "./useSourceSync";
+import { useCloudCover } from "./useCloudCover";
+import { NOAA_GFS_CLOUDS_SOURCE } from "@/lib/sources/noaa/gfs-source";
 
 /** Display clock for relative times and freshness; never triggers a fetch. */
 function useNow(intervalMs: number): number {
@@ -293,6 +296,39 @@ export default function Workspace() {
   const eonetState = toSyncState(NASA_EONET_SOURCE.id, eonet, NASA_EONET_SYNC, now);
   const weatherState = toSyncState(OPEN_METEO_SOURCE.id, weather, OPEN_METEO_SYNC, now);
 
+  // CLOUDS (NOAA GFS model field): fetched only while the layer is shown; the last
+  // field is kept for the session. Health = |now − validAt| of the field on the map
+  // (NOAA_GFS_CLOUDS_SYNC); "UPDATED … AGO" = time since the last successful check.
+  const clouds = useCloudCover(layerVisibility.clouds, NOAA_GFS_CLOUDS_SYNC.pollIntervalMs);
+  const cloudsFeed = clouds.snapshot?.feed ?? null;
+  const cloudsState = {
+    sourceId: NOAA_GFS_CLOUDS_SOURCE.id,
+    health: deriveHealth({
+      hasSnapshot: cloudsFeed !== null,
+      attempted: clouds.attempted,
+      lastAttemptFailed: clouds.lastAttemptFailed,
+      snapshotAgeMs: cloudsFeed ? Math.abs(now - Date.parse(cloudsFeed.observation.validAt ?? "")) : null,
+      freshnessWindowMs: NOAA_GFS_CLOUDS_SYNC.freshnessWindowMs,
+    }),
+    lastAttemptAt: clouds.lastAttemptAt,
+    lastSuccessAt: clouds.lastSuccessAt,
+    lastIngestedAt: cloudsFeed?.metadata.ingestedAt,
+    snapshotAgeMs: clouds.lastSuccessAt ? Math.max(0, now - Date.parse(clouds.lastSuccessAt)) : null,
+  };
+  const cloudGrid = useMemo(
+    () =>
+      clouds.snapshot
+        ? {
+            id: clouds.snapshot.feed.grid.id,
+            width: clouds.snapshot.feed.grid.width,
+            height: clouds.snapshot.feed.grid.height,
+            values: clouds.snapshot.values,
+            noDataValue: clouds.snapshot.feed.grid.noDataValue,
+          }
+        : null,
+    [clouds.snapshot],
+  );
+
   const sources = [
     { id: USGS_EARTHQUAKES_SOURCE.id, name: USGS_EARTHQUAKES_SOURCE.name, state: usgsState, snapshot: usgs.snapshot },
     { id: WTIA_ISS_SOURCE.id, name: WTIA_ISS_SOURCE.name, state: issState, snapshot: iss.snapshot },
@@ -305,6 +341,10 @@ export default function Workspace() {
     // On-demand: only while a weather point exists (no false UNAVAILABLE before any query).
     ...(weatherPoint
       ? [{ id: OPEN_METEO_SOURCE.id, name: OPEN_METEO_SOURCE.name, state: weatherState, snapshot: weather.snapshot }]
+      : []),
+    // On-demand: only while the cloud layer is shown and a valid field exists.
+    ...(layerVisibility.clouds && cloudsFeed
+      ? [{ id: NOAA_GFS_CLOUDS_SOURCE.id, name: NOAA_GFS_CLOUDS_SOURCE.name, state: cloudsState, snapshot: cloudsFeed }]
       : []),
   ];
   // Same aggregation for every source; no special rules.
@@ -333,6 +373,13 @@ export default function Workspace() {
         feed={weather.snapshot}
         health={weatherState.health}
         failed={weather.lastAttemptFailed}
+        clouds={{
+          visible: layerVisibility.clouds,
+          feed: cloudsFeed,
+          health: cloudsState.health,
+          failed: clouds.lastAttemptFailed,
+        }}
+        onToggleClouds={() => toggleLayer("clouds")}
         onClose={close}
       />
     );
@@ -448,6 +495,7 @@ export default function Workspace() {
             weatherMode={panelTarget?.type === "domain" && panelTarget.domain === "weather"}
             weatherPoint={weatherPoint}
             onPickWeatherPoint={pickWeatherPoint}
+            cloudGrid={cloudGrid}
           />
         </main>
         {panel}

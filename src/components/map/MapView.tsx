@@ -1,5 +1,6 @@
 "use client";
 
+import type { CloudGrid } from "./cloud-layer";
 import { useCallback, useState } from "react";
 import dynamic from "next/dynamic";
 import type { AuroraForecastFeed, EarthquakeFeed, EonetEventObservation, IssFeed } from "@/types";
@@ -36,6 +37,7 @@ export default function MapView({
   weatherMode,
   weatherPoint,
   onPickWeatherPoint,
+  cloudGrid,
 }: {
   earthquakes: EarthquakeFeed | null;
   eonetEvents: EonetEventObservation[];
@@ -49,6 +51,7 @@ export default function MapView({
   weatherMode: boolean;
   weatherPoint: { latitude: number; longitude: number } | null;
   onPickWeatherPoint: (point: { latitude: number; longitude: number }) => void;
+  cloudGrid: CloudGrid | null;
 }) {
   // Two independent session states (not persisted): projection and basemap.
   const [projection, setProjection] = useState<ProjectionMode>(DEFAULT_PROJECTION);
@@ -87,6 +90,7 @@ export default function MapView({
         weatherMode={weatherMode}
         weatherPoint={weatherPoint}
         onPickWeatherPoint={onPickWeatherPoint}
+        cloudGrid={cloudGrid}
       />
       <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-end gap-2">
         <SegmentedControl

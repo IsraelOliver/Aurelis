@@ -1,10 +1,11 @@
-import type { SourceHealth, WeatherPointFeed } from "@/types";
+import type { CloudCoverFeed, SourceHealth, WeatherPointFeed } from "@/types";
 import { formatLatitude, formatLongitude } from "@/lib/format";
 import { WMO_WEATHER_CODES } from "@/lib/weather-codes";
 import { CC_BY_4_URL, OPEN_METEO_LICENCE_URL } from "@/lib/sources/open-meteo/source";
 import { EMPTY, Note, PanelShell, Row, Section, Time } from "./primitives";
 import SeriesChart, { type SeriesPoint } from "./SeriesChart";
 import { Tag } from "./SolarWindSections";
+import CloudsSection from "./CloudsSection";
 
 const n1 = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
 const unit = (v: number | undefined, u: string) => (v === undefined ? EMPTY : `${n1.format(v)} ${u}`);
@@ -14,12 +15,15 @@ const unit = (v: number | undefined, u: string) => (v === undefined ? EMPTY : `$
  * the snapshot of the CURRENT point only (never another point's data). Current
  * conditions are model estimates; the next 24 hours are forecasts. Times UTC.
  * Attribution (CC BY 4.0) next to the data, as Open-Meteo requires.
+ * CLOUDS (NOAA GFS map layer) is independent of the point and always listed.
  */
 export default function WeatherPanel({
   point,
   feed,
   health,
   failed,
+  clouds,
+  onToggleClouds,
   onClose,
 }: {
   /** Point chosen on the map, or null before any click. */
@@ -29,8 +33,20 @@ export default function WeatherPanel({
   health: SourceHealth;
   /** Last attempt for this point failed. */
   failed: boolean;
+  clouds: { visible: boolean; feed: CloudCoverFeed | null; health: SourceHealth; failed: boolean };
+  onToggleClouds: () => void;
   onClose: () => void;
 }) {
+  const cloudsSection = (
+    <CloudsSection
+      visible={clouds.visible}
+      feed={clouds.feed}
+      health={clouds.health}
+      failed={clouds.failed}
+      onToggle={onToggleClouds}
+    />
+  );
+
   if (!point) {
     return (
       <PanelShell eyebrow="WEATHER" title="Select a point on the map" onClose={onClose}>
@@ -40,6 +56,7 @@ export default function WeatherPanel({
           </p>
           <Note>Clicking an earthquake, EONET event or the ISS still selects it.</Note>
         </Section>
+        {cloudsSection}
       </PanelShell>
     );
   }
@@ -205,6 +222,8 @@ export default function WeatherPanel({
         </a>
         <span className="mt-0.5 block">Values as received; layout and 24 h sum by AURELIS. Times UTC.</span>
       </div>
+
+      {cloudsSection}
     </PanelShell>
   );
 }

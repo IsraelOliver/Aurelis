@@ -77,6 +77,16 @@ export const NASA_EONET_SYNC: SyncConfig = { pollIntervalMs: 5 * 60_000, freshne
  */
 export const OPEN_METEO_SYNC: SyncConfig = { pollIntervalMs: 10 * 60_000, freshnessWindowMs: 30 * 60_000 };
 
+/**
+ * NOAA GFS cloud cover (on demand, only while the layer is shown): runs every
+ * 6 h, published ~3.5 h later; the selected hourly step changes every hour.
+ * Client poll 30 min (+ server check at most every 10 min) keeps the shown
+ * field within ~1 h of now. Freshness here is NOT the age of ingestedAt: it is
+ * |now − validAt| of the field on the map, fresh while ≤ 90 min. AURELIS
+ * operational policy, not an NOAA SLA.
+ */
+export const NOAA_GFS_CLOUDS_SYNC: SyncConfig = { pollIntervalMs: 30 * 60_000, freshnessWindowMs: 90 * 60_000 };
+
 export function deriveHealth(input: {
   hasSnapshot: boolean;
   attempted: boolean;

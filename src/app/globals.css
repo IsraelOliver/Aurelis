@@ -26,6 +26,10 @@
   --aurelis-aurora: #5ee6a8;
   --aurelis-aurora-high: #9df7b9;
   --aurelis-aurora-peak: #a98cf0;
+  /* GFS cloud layer only: neutral cool grey (thin) → near-white (thick). Not a
+     cloud type; opacity carries the cloud fraction. */
+  --aurelis-cloud-thin: #b4bfcf;
+  --aurelis-cloud: #f5f7fa;
 
   --aurelis-text: #eeeeef;
   --aurelis-text-muted: #989ba2;
