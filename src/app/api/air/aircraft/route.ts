@@ -2,6 +2,7 @@ import { gzipSync } from "node:zlib";
 import { OpenSkyAuthError } from "@/lib/sources/opensky/auth";
 import { OpenSkyRateLimitError, buildAirTrafficFeed, fetchGlobalStates } from "@/lib/sources/opensky/states";
 import { AIR_POLL_MS } from "@/lib/sources/opensky/source";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * Current GLOBAL OpenSky snapshot (one /states/all request, no bounding box)
@@ -50,6 +51,8 @@ function getSnapshot() {
 }
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   try {
     const snapshot = await getSnapshot();
     const acceptsGzip = /\bgzip\b/.test(request.headers.get("accept-encoding") ?? "");

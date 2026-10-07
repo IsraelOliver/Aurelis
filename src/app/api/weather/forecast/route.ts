@@ -1,5 +1,6 @@
 import { fetchOpenMeteoPoint } from "@/lib/sources/open-meteo/forecast";
 import { parseQueryCoordinate } from "@/lib/sources/open-meteo/source";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * Point weather (Open-Meteo Forecast API, Best Match) in the AURELIS model:
@@ -10,6 +11,8 @@ import { parseQueryCoordinate } from "@/lib/sources/open-meteo/source";
  * 10 min is a low volume. Only the validated coordinate reaches the upstream URL.
  */
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   const params = new URL(request.url).searchParams;
   const point = parseQueryCoordinate(params.get("lat"), params.get("lon"));
   if (!point) {

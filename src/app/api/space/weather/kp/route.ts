@@ -1,5 +1,6 @@
 import type { PlanetaryKpFeed } from "@/types";
 import { fetchPlanetaryKp } from "@/lib/sources/noaa/swpc-kp";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * NOAA SWPC planetary Kp in the AURELIS model (not raw SWPC JSON).
@@ -32,6 +33,8 @@ function getKp(): Promise<PlanetaryKpFeed> {
 }
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   try {
     return Response.json(await getKp());
   } catch (error) {

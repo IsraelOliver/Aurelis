@@ -1,5 +1,6 @@
 import type { IssFeed } from "@/types";
 import { fetchIssPosition } from "@/lib/sources/wtia/iss";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * Current ISS position in the AURELIS model (not raw Where The ISS At? JSON).
@@ -33,6 +34,8 @@ function getIss(): Promise<IssFeed> {
 }
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   try {
     return Response.json(await getIss());
   } catch (error) {

@@ -1,9 +1,11 @@
-import Workspace from "@/components/Workspace";
+import { redirect } from "next/navigation";
+import { verifyAuth } from "@/lib/auth";
+import { rootDestination } from "@/lib/auth-core";
 
-export default function Home() {
-  return (
-    <div className="flex h-dvh flex-col overflow-hidden">
-      <Workspace />
-    </div>
-  );
+/**
+ * Temporary root: authenticated → /app, otherwise → /login.
+ * Reserved for the future public landing/portfolio.
+ */
+export default async function Home() {
+  redirect(rootDestination(await verifyAuth()));
 }

@@ -1,5 +1,6 @@
 import type { AuroraForecastFeed } from "@/types";
 import { fetchAuroraForecast } from "@/lib/sources/noaa/ovation";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * Latest NOAA SWPC OVATION aurora forecast in the AURELIS model (not raw SWPC
@@ -32,6 +33,8 @@ function getAurora(): Promise<AuroraForecastFeed> {
 }
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   try {
     return Response.json(await getAurora());
   } catch (error) {

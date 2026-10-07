@@ -4,6 +4,7 @@ import { formatAgo } from "@/lib/format";
 import type { SourceHealth } from "@/types";
 import type { DomainId } from "@/components/Workspace";
 import CategoryIcon from "./CategoryIcon";
+import SessionControl from "./SessionControl";
 
 export interface SidebarSource {
   id: string;
@@ -183,6 +184,8 @@ export default function Sidebar({
           </ul>
         </div>
       )}
+
+      <SessionControl collapsed={collapsed} />
     </aside>
   );
 }

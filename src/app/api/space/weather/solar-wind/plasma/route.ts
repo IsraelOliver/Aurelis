@@ -1,5 +1,6 @@
 import { fetchSolarWindPlasma } from "@/lib/sources/noaa/rtsw";
 import { dedupedFetcher } from "@/lib/deduped-fetch";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * NOAA SWPC RTSW plasma in the AURELIS model: active samples of the last
@@ -10,6 +11,8 @@ import { dedupedFetcher } from "@/lib/deduped-fetch";
 const getPlasma = dedupedFetcher(fetchSolarWindPlasma, 45_000);
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   try {
     return Response.json(await getPlasma());
   } catch (error) {

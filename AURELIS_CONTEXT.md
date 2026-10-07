@@ -116,6 +116,8 @@ Próximos passos planejados:
 | TypeScript   | 5.9.3    |
 | Tailwind CSS | 4.3.3    |
 | MapLibre GL  | 6.12.0   |
+| OpenAI SDK   | 7.30.0 (`openai`, só servidor) |
+| Supabase     | `@supabase/supabase-js` 2.117.3 · `@supabase/ssr` 0.12.7 (só Auth) |
 | ESLint       | 9.39.5 (eslint-config-next) |
 | Node / npm   | 24.21.0 / 11.19.0 |
 
@@ -710,6 +712,20 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **Erros sanitizados** ("AI SERVICE UNAVAILABLE · …"): não configurado, 400, 401/403, 429/quota, timeout, 5xx, abort; logs só com classe, status, código e request id. Rota só same-origin + JSON.
 - **UI**: item **SMILEY** separado na base da sidebar; painel de 420 px; cabeçalho SMILEY / AURELIS PERSONAL INTELLIGENCE / READY · GPT-6 LUNA · SESSION; estado vazio "Personal intelligence for your AURELIS dashboard."; AVAILABLE (domínios com dado) e FOCUS acima do composer.
 
+### AUTH — acesso privado single-user (Etapa AUTH 1A)
+
+Detalhes em `docs/AUTH_ARCHITECTURE.md`.
+
+- **Supabase Auth** (só Auth; nenhuma tabela, policy ou schema próprio; sem `service_role`, sem senha do banco, sem `DATABASE_URL`). Single-user: o usuário foi criado manualmente; **sign-up público e anonymous sign-ins desativados no Supabase**; não existe tela de cadastro, convite, papéis nem recuperação de senha.
+- **Sessão em cookies (SSR)** via `@supabase/ssr`: `lib/supabase/client.ts` (browser), `lib/supabase/server.ts` (Server Components/Route Handlers, cliente novo por request) e **`src/proxy.ts`** (Next.js 16; antigo middleware) que só **renova a sessão** com `getClaims()` e devolve os cookies + cabeçalhos no-cache. Nada em localStorage.
+- **Autorização no servidor com `getClaims()`** (verifica o JWT), nunca `getSession()`: `lib/auth.ts` (`verifyAuth`, `requireAuth` para APIs, `requirePageAuth` para páginas) sobre regras puras em `lib/auth-core.ts` (exige `sub`, `role: authenticated`, não anônimo; expõe só o id do usuário).
+- **Rotas**: `/login` pública (autenticado → `/app`); **`/app`** = o dashboard (antes em `/`), validado no servidor (sem sessão → `/login`, nada renderizado); **`/` temporário**: autenticado → `/app`, senão → `/login` (reservado para a futura landing/portfolio pública).
+- **APIs**: os **13 Route Handlers** de `app/api/**` começam por `requireAuth()` antes de qualquer upstream (OpenAI, OpenSky, NOAA, NASA, USGS, Open-Meteo, NOAA GFS): sem sessão → **401 `{"error":"UNAUTHORIZED"}`** (Supabase não configurado → 503 `AUTH_UNAVAILABLE`). Públicos só: `/login`, `_next/*`, ícones, `public/` (estilo do mapa, worker do MapLibre) e a troca de sessão feita pelo próprio Supabase. A proteção same-origin do SMILEY continua.
+- **/login**: tela AURELIS (globo/órbita, grid técnico, estrelas discretas), AUTHORIZED ACCESS, EMAIL/PASSWORD, ENTER AURELIS → AUTHENTICATING... → ACCESS DENIED · "Invalid credentials." (erro sanitizado; não revela se a conta existe), SYSTEM LOCKED. `signInWithPassword` no browser client; sucesso → `/app`.
+- **Logout**: AUTHORIZED · LOG OUT na base da sidebar (`signOut()` → navegação completa para `/login`, que zera o estado do cliente). Nenhum e-mail ou nome exibido.
+- **Variáveis**: `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (públicas por design). Ausentes → build passa; em runtime, login mostra AUTH UNAVAILABLE e as APIs respondem 503.
+- **Logs**: só `[AUTH] claims check failed: <nome do erro> status=<n>`; nunca senha, tokens, cookies ou cabeçalhos.
+
 ### Dívida técnica
 
 - **Saúde da fonte** (*Future source health should model explicit states such as fresh, stale and unavailable instead of source-specific cache heuristics.*): **parcialmente resolvida na 4D** no cliente (`SourceHealth`). O servidor ainda usa a heurística de idade de 120 s específica da rota de terremotos; generalizar quando houver a segunda fonte.
@@ -749,6 +765,7 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - **Raios X solares (NOAA SWPC GOES, primary)**: sétima fonte, fluxo 0.1–0.8 nm atual (observed) + gráfico log de 6 h com bandas A–X e último evento de flare oficial (reported); sem Entity e sem mapa.
 - **Vento solar e IMF (NOAA SWPC RTSW)**: quinta e sexta fontes, medições in situ (observed) do spacecraft ativo: velocidade, densidade, temperatura, IMF Bz (SOUTHWARD/NORTHWARD) e Bt, com gráficos de 6 h no painel SPACE; sem Entity e sem mapa.
 - **Aurora forecast (NOAA SWPC OVATION)**: quarta fonte, forecast de 30–90 min em grade de 1° como layer opcional no mapa (SHOW ON MAP no painel SPACE) + resumo no painel; nature `forecast`, `validAt`; sem Entity.
+- **Acesso privado (Supabase Auth, single-user)**: `/login` → `/app`; sessão em cookies renovada pelo `proxy.ts`; páginas e as 13 APIs validadas no servidor com `getClaims()` (401 sem sessão, zero chamadas upstream); logout na sidebar.
 - **SMILEY (read-only)**: inteligência pessoal do AURELIS via OpenAI Responses API (`gpt-6-luna`, servidor apenas, `store: false`, streaming, sessão só em memória) com Context Router, Domain Capsules, Context Budget, perfil pessoal seletivo (servidor) e telemetria de tokens; interpreta, não é fonte; sem ações, web ou memória persistente.
 - **Seleção de terremoto + Intelligence Panel** (dados e proveniência), destaque dourado do evento selecionado.
 - **Hierarquia de rótulos por zoom** no basemap (países → capitais → cidades/estados → detalhes); ver `docs/MAP_ARCHITECTURE.md`.
@@ -769,7 +786,8 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 - Busca funcional; filtros/seleção de camadas.
 - EON Core, Tissue, Echo, Rupture, Needle.
 - SMILEY além da 1B: memória persistente/SQLite, preferências inferidas persistentes, aprendizado por cliques, histórico persistido, web search, notícias/RSS, embeddings/RAG/vector DB, agentes, trabalho em segundo plano, notificações, ações/tools, voz, imagens, upload, seletor de modelo, escalonamento para outro modelo.
-- Banco de dados, Supabase, PostgreSQL, Redis, autenticação, WebSockets, filas, Docker, backend de ingestão, PWA, Tauri.
+- Tabelas próprias no Supabase/PostgreSQL (e RLS), memória persistente do Smiley, landing/portfolio pública em `/`, recuperação de senha, cadastro, papéis, rate limiting custom.
+- Redis, WebSockets, filas, Docker, backend de ingestão, PWA, Tauri.
 - Testes automatizados.
 - Interface mobile dedicada.
 
@@ -777,7 +795,7 @@ USGS GeoJSON ─► lib/sources/usgs/earthquakes.ts (validação + normalizaçã
 
 ```bash
 npm install
-npm run dev     # http://localhost:3000
+npm run dev     # http://localhost:3000 (→ /login; dashboard em /app)
 npm run lint
 npm run build
 npm start
@@ -821,3 +839,4 @@ npm start
 2026-10-07 14:00 | lib/sources/opensky/{source,rows,state-vector,states}.ts, app/api/air/aircraft, types/air.ts, lib/{aircraft-motion,air-policy,map-layers,source-health}.ts, components/useAirTraffic.ts, map/{aircraft-layer,WorldMap,MapView}.tsx, Workspace, panel/{AirPanel,AircraftPanel}.tsx | Etapa 9B: AIR global — uma chamada /states/all sem bbox (4 créditos, confirmado), polling 30 s só com AIR ativo e aeronaves visíveis (pausa sem gastar créditos, snapshot reaproveitado + refresh imediato), guarda de cota (≤ 10 refreshes → pausa + Refresh once), linhas compactas gzip (~0,41 MB), posições > 60 s não desenhadas (política AURELIS), custom layer WebGL2 com sprites instanciados e atlas (pixel art futuro), altitude real no globo (geo → baro rotulado → superfície; FLAT 2D), interpolação visual entre duas posições reais com ~35 s de atraso, caminho angular mais curto, sem interpolação vertical entre semânticas, sem extrapolação, picking na CPU; UX regional da 9A removida.
 2026-10-07 16:45 | lib/ai/{types,context,system-prompt,openai,chat-handler}.ts, app/api/ai/chat, components/{useAiChat,Workspace}.tsx, panel/{AiPanel,AiMarkdown}.tsx, layout/Sidebar, docs/AI_ARCHITECTURE.md | Etapa AI 1A: AURELIS AI read-only. OpenAI Responses API (SDK openai 7.30.0) só no servidor, gpt-6-luna (override AURELIS_AI_MODEL), stream, store:false, reasoning low, 2000 tokens, timeout 90 s, sem retries; contexto compacto determinístico (~15 KB; AIR só contagens; sem grades/GeoJSON/trilhas) como dado não confiável; sessão em memória (12 mensagens), STOP/NEW; erros sanitizados; item AURELIS AI na sidebar e painel próprio. A IA não é fonte. Testes: 10 puros + 8 de rota (mocks), 1 chamada real mínima, smoke no navegador.
 2026-10-07 18:00 | lib/ai/{types,router,capsules,context,personal,profile,attention,system-prompt,openai,chat-handler}.ts, app/api/ai/chat, components/{useAiChat,Workspace}.tsx, panel/{AiPanel,AiMarkdown}.tsx, layout/Sidebar, docs/AI_ARCHITECTURE.md | Etapa AI 1B: AURELIS AI → SMILEY (AURELIS Personal Intelligence). Context Router determinístico, Domain Capsules, Context Budget por intent, perfil pessoal estruturado só no servidor com recuperação seletiva (origin user_stated/observed/inferred), fundação do Attention Engine (6 capacidades preparadas), janela de 8 mensagens, prompt compacto, telemetria por resposta e de sessão. "Olá" 5.665 → 398 tokens de entrada. Ligação de view do mapa (1A) removida: o contexto não usa mais câmera/projeção.
+2026-10-07 19:10 | proxy.ts, lib/supabase/{env,client,server,proxy}.ts, lib/{auth,auth-core}.ts, app/{page,app/page,login/page,login/LoginScreen}.tsx, app/api/** (13 handlers), layout/{Sidebar,SessionControl}.tsx, docs/AUTH_ARCHITECTURE.md | Etapa AUTH 1A: acesso privado single-user com Supabase Auth (@supabase/ssr, sessão em cookies, proxy.ts do Next 16 só para refresh, autorização com getClaims no servidor). Dashboard movido de / para /app; / redireciona (/app ou /login); /login com identidade AURELIS; 13 Route Handlers exigem sessão antes de qualquer upstream (401 UNAUTHORIZED); logout na sidebar. Sem service_role, sem tabelas, sem sign-up.

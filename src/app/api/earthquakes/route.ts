@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { fetchUsgsEarthquakes } from "@/lib/sources/usgs/earthquakes";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * Normalized USGS earthquakes (AURELIS model, not raw USGS GeoJSON).
@@ -22,6 +23,8 @@ const getEarthquakes = unstable_cache(
 const MAX_AGE_MS = 120_000;
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   try {
     let feed = await getEarthquakes();
     if (Date.now() - Date.parse(feed.metadata.ingestedAt) > MAX_AGE_MS) {

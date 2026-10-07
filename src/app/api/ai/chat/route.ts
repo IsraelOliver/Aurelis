@@ -1,6 +1,7 @@
 import { handleChat } from "@/lib/ai/chat-handler";
 import { getAurelisAIProvider } from "@/lib/ai/openai";
 import { PERSONAL_PROFILE } from "@/lib/ai/profile";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * SMILEY (read-only personal intelligence): browser → this route → OpenAI
@@ -10,6 +11,8 @@ import { PERSONAL_PROFILE } from "@/lib/ai/profile";
  */
 export const dynamic = "force-dynamic";
 
-export function POST(request: Request) {
+export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   return handleChat(request, getAurelisAIProvider(), PERSONAL_PROFILE);
 }

@@ -2,6 +2,7 @@ import { gzipSync } from "node:zlib";
 import type { EonetFeed } from "@/types";
 import { fetchEonetOpenEvents } from "@/lib/sources/nasa/eonet";
 import { dedupedFetcher } from "@/lib/deduped-fetch";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * NASA EONET open natural events in the AURELIS model (Entities +
@@ -20,6 +21,8 @@ const getEonet = dedupedFetcher(async () => {
 }, 4 * 60_000);
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   let snapshot: { feed: EonetFeed; json: string; gzip: Buffer };
   try {
     snapshot = await getEonet();

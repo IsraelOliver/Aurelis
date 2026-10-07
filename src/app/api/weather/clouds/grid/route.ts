@@ -1,5 +1,6 @@
 import { getGfsCloudFieldById } from "@/lib/sources/noaa/gfs-clouds";
 import { parseGfsFieldId } from "@/lib/sources/noaa/gfs-source";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * Binary grid of one GFS cloud cover field (layout in CloudCoverGridInfo):
@@ -10,6 +11,8 @@ import { parseGfsFieldId } from "@/lib/sources/noaa/gfs-source";
 const MAX_RUN_AGE_MS = 48 * 3_600_000;
 
 export async function GET(request: Request) {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   const parsed = parseGfsFieldId(new URL(request.url).searchParams.get("id") ?? "");
   const age = parsed ? Date.now() - parsed.run.timeMs : NaN;
   if (!parsed || !(age >= 0 && age <= MAX_RUN_AGE_MS)) {

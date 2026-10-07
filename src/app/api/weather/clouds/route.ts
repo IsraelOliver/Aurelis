@@ -1,6 +1,7 @@
 import { dedupedFetcher } from "@/lib/deduped-fetch";
 import { getGfsCloudField, selectGfsCloudField } from "@/lib/sources/noaa/gfs-clouds";
 import type { CloudCoverFeed } from "@/types";
+import { requireAuth } from "@/lib/auth";
 
 /**
  * Current GFS total cloud cover field (metadata only; the grid is at
@@ -20,6 +21,8 @@ const getCurrent = dedupedFetcher(async (): Promise<CloudCoverFeed> => {
 }, MIN_CHECK_INTERVAL_MS);
 
 export async function GET() {
+  const auth = await requireAuth();
+  if (!auth.ok) return auth.response;
   try {
     return Response.json(await getCurrent(), { headers: { "cache-control": "no-store" } });
   } catch (error) {
