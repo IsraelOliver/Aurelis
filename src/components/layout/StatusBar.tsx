@@ -8,38 +8,56 @@ const STATUS_BY_HEALTH: Record<GlobalHealth, string> = {
   unavailable: "DEGRADED",
 };
 
-function Item({ label, value }: { label: string; value: string }) {
-  return (
-    <span className="flex items-center gap-2 px-4 first:pl-0">
-      <span className="text-fg-subtle">{label}</span>
-      <span className="font-mono text-fg-muted">{value}</span>
-    </span>
-  );
-}
+const n0 = new Intl.NumberFormat("en-US");
 
 /**
- * SOURCES: sources with a usable snapshot. ENTITIES: sum of current entities
- * across those snapshots (not observations). Zero until a snapshot exists.
+ * Desktop status (AURELIS 1.1): SOURCES / ENTITIES / STATUS as a compact block
+ * in the sidebar footer instead of a full-width bar. SOURCES: sources with a
+ * usable snapshot. ENTITIES: current entities across those snapshots (not
+ * observations). Collapsed rail: one status dot with the figures in its title.
  */
 export default function StatusBar({
   sourceCount,
   entityCount,
   health,
+  collapsed = false,
 }: {
   sourceCount: number;
   entityCount: number;
   health: GlobalHealth;
+  collapsed?: boolean;
 }) {
+  const status = STATUS_BY_HEALTH[health];
+  const nominal = health === "live";
+  const dot = (
+    <span className={`size-1.5 shrink-0 rounded-full ${nominal ? "bg-data shadow-[0_0_0_3px_color-mix(in_srgb,var(--accent-data)_18%,transparent)]" : "border border-fg-subtle"}`} aria-hidden="true" />
+  );
+  const figures = `${sourceCount} sources · ${n0.format(entityCount)} entities`;
+  if (collapsed) {
+    return (
+      <div role="status" className="flex justify-center py-2" title={`Status ${status} · ${figures}`}>
+        {dot}
+        <span className="sr-only">
+          Status {status}, {figures}
+        </span>
+      </div>
+    );
+  }
   return (
-    <footer className="hidden h-7 shrink-0 items-center border-t border-line bg-base px-4 text-[10px] font-medium tracking-[0.2em] lg:flex">
-      <div className="flex items-center divide-x divide-line">
-        <Item label="SOURCES" value={String(sourceCount)} />
-        <Item label="ENTITIES" value={String(entityCount)} />
-      </div>
-      <div className="ml-auto flex items-center" role="status">
-        <Item label="STATUS" value={STATUS_BY_HEALTH[health]} />
-      </div>
-    </footer>
+    <div role="status" className="mx-3 mb-1 rounded-2xl border border-hairline bg-material-group px-3.5 pb-2.5 pt-2.5 shadow-thumb">
+      <span className="flex items-center gap-2 text-[9.5px] font-medium tracking-[0.22em] text-fg-subtle">
+        SYSTEM
+        <span className="h-px flex-1 bg-hairline" aria-hidden="true" />
+        {dot}
+      </span>
+      <span className="mt-1 block font-display text-[21px] leading-none text-fg">
+        {status.charAt(0) + status.slice(1).toLowerCase()}
+        <span className="sr-only"> ({status})</span>
+      </span>
+      <span className="mt-1.5 block font-mono text-[10.5px] text-fg-subtle" title="Sources with a usable snapshot · current entities">
+        {figures}
+      </span>
+    </div>
   );
 }
 

@@ -53,11 +53,11 @@ export default function AircraftPanel({
   return (
     <PanelShell eyebrow="AIRCRAFT" title={entity.label ?? d.icao24} sourceHealth={sourceHealth} onClose={onClose}>
       <div className="flex items-center gap-2 px-4 pb-4">
-        <span className="font-mono text-[13px] tracking-[0.12em] text-cyan">{status}</span>
+        <span className="font-mono text-[13px] tracking-[0.12em] text-data">{status}</span>
         <button
           type="button"
           onClick={onHideAircraft}
-          className="ml-auto h-7 rounded border border-gold/60 px-3 text-[10px] font-medium tracking-[0.2em] text-gold transition-colors hover:border-gold"
+          className="ml-auto h-7 rounded border border-accent/60 px-3 text-[10px] font-medium tracking-[0.2em] text-accent transition-colors hover:border-accent"
         >
           HIDE AIRCRAFT
         </button>

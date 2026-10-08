@@ -77,7 +77,7 @@ export default function MapView({
 
   return (
     <div
-      className={`relative h-full w-full bg-base ${basemap === "satellite" ? "aurelis-basemap-satellite" : ""}`}
+      className={`relative h-full w-full bg-map ${basemap === "satellite" ? "aurelis-basemap-satellite" : ""}`}
     >
       <WorldMap
         earthquakes={earthquakes}
@@ -99,7 +99,7 @@ export default function MapView({
         aircraft={aircraft}
         aircraftShown={aircraftShown}
       />
-      <div className="aurelis-map-controls absolute bottom-3 left-3 z-10 flex flex-wrap items-end gap-2 transition-[bottom] duration-200 max-lg:bottom-[calc(var(--sheet-offset,0px)+0.75rem)] max-lg:left-[max(0.75rem,env(safe-area-inset-left))] max-lg:max-w-[calc(100%-5rem)]">
+      <div className="aurelis-map-controls absolute bottom-3 left-3 z-10 flex flex-wrap items-end gap-2 transition-[bottom] duration-200 lg:bottom-5 lg:left-5 lg:gap-2.5 max-lg:bottom-[calc(var(--sheet-offset,0px)+0.75rem)] max-lg:left-[max(0.75rem,env(safe-area-inset-left))] max-lg:max-w-[calc(100%-5rem)]">
         <SegmentedControl
           label="Map projection"
           value={projection}

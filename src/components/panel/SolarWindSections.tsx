@@ -75,7 +75,7 @@ export function SolarWindSection({ feed, health }: { feed: SolarWindPlasmaFeed |
     <Section title="SOLAR WIND · PLASMA">
       <FeedNotice label="PLASMA" health={health} />
       <div className="flex items-baseline gap-2 py-1.5">
-        <span className="font-mono text-[26px] leading-none text-gold">
+        <span className="font-mono text-[26px] leading-none text-accent">
           {d?.protonSpeedKms !== undefined ? n0.format(d.protonSpeedKms) : EMPTY}
         </span>
         <span className="text-[11px] text-fg-muted">km/s</span>
@@ -140,7 +140,7 @@ export function ImfSection({ feed, health }: { feed: InterplanetaryMagneticField
       <FeedNotice label="MAG" health={health} />
       <div className="flex items-baseline gap-2 py-1.5">
         <span className="text-[10px] font-medium tracking-[0.18em] text-fg-subtle">IMF Bz</span>
-        <span className="font-mono text-[26px] leading-none text-gold">
+        <span className="font-mono text-[26px] leading-none text-accent">
           {d?.bzGsmNt !== undefined ? n2.format(d.bzGsmNt) : EMPTY}
         </span>
         <span className="text-[11px] text-fg-muted">nT</span>

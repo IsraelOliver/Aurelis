@@ -15,7 +15,7 @@ function inline(text: string): ReactNode[] {
     if ((part.startsWith("**") && part.endsWith("**") && part.length > 4) || (part.startsWith("__") && part.endsWith("__") && part.length > 4))
       return <strong key={i} className="font-semibold text-fg">{part.slice(2, -2)}</strong>;
     if (part.startsWith("`") && part.endsWith("`") && part.length > 2)
-      return <code key={i} className="rounded bg-base px-1 py-px font-mono text-[11.5px] text-cyan">{part.slice(1, -1)}</code>;
+      return <code key={i} className="rounded bg-base px-1 py-px font-mono text-[11.5px] text-data">{part.slice(1, -1)}</code>;
     if (part.startsWith("*") && part.endsWith("*") && part.length > 2) return <em key={i}>{part.slice(1, -1)}</em>;
     return <Fragment key={i}>{part}</Fragment>;
   });
@@ -105,7 +105,7 @@ export default function AiMarkdown({ text }: { text: string }) {
           <List key={i} className="flex flex-col gap-1">
             {block.items.map((item, j) => (
               <li key={j} className={`flex gap-2 ${item.depth ? "pl-4" : ""}`}>
-                <span className="shrink-0 font-mono text-[11px] text-cyan" aria-hidden="true">
+                <span className="shrink-0 font-mono text-[11px] text-data" aria-hidden="true">
                   {block.type === "ol" && !item.depth ? `${item.n ?? j + 1}.` : "·"}
                 </span>
                 <span className="min-w-0">{inline(item.text)}</span>

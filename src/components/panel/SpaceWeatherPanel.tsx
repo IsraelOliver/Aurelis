@@ -75,7 +75,7 @@ export default function SpaceWeatherPanel({
       <Section title="PLANETARY Kp">
         <SourceNotice label="Kp" health={kpHealth} staleText="Showing the last known estimate." />
         <div className="flex items-baseline gap-3 py-1.5">
-          <span className="font-mono text-[32px] leading-none text-gold">
+          <span className="font-mono text-[32px] leading-none text-accent">
             {latest ? String(latest.data.estimatedKp) : EMPTY}
           </span>
           <Tag>ESTIMATED</Tag>
@@ -115,7 +115,7 @@ export default function SpaceWeatherPanel({
             aria-pressed={auroraVisible}
             className={`ml-auto h-7 rounded border px-3 text-[10px] font-medium tracking-[0.2em] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
               auroraVisible
-                ? "border-gold/60 text-gold hover:border-gold"
+                ? "border-accent/60 text-accent hover:border-accent"
                 : "border-line text-fg-muted hover:border-line-strong hover:text-fg"
             }`}
           >

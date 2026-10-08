@@ -117,16 +117,16 @@ export default function SeriesChart({
       ))}
       {runs.map((pts, i) =>
         pts.includes(" ") ? (
-          <polyline key={i} points={pts} fill="none" className="stroke-cyan" strokeWidth="1.25" strokeLinejoin="round" />
+          <polyline key={i} points={pts} fill="none" className="stroke-data" strokeWidth="1.25" strokeLinejoin="round" />
         ) : (
           // A single isolated sample is still shown.
-          <circle key={i} cx={pts.split(",")[0]} cy={pts.split(",")[1]} r="1" className="fill-cyan" />
+          <circle key={i} cx={pts.split(",")[0]} cy={pts.split(",")[1]} r="1" className="fill-data" />
         ),
       )}
       {secondaryRuns.map((pts, i) => (
         <polyline key={`s${i}`} points={pts} fill="none" className="stroke-fg-muted" strokeWidth="1.25" strokeDasharray="3 2" strokeLinejoin="round" />
       ))}
-      {markLatest && <circle cx={x(last.t)} cy={y(last.v)} r="2.5" className="fill-gold" />}
+      {markLatest && <circle cx={x(last.t)} cy={y(last.v)} r="2.5" className="fill-accent" />}
     </svg>
   );
 }

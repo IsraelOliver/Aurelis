@@ -92,9 +92,9 @@ export default function KpTrendChart({
           </text>
         ))}
         {runs.map((pts, i) => (
-          <polyline key={i} points={pts} fill="none" className="stroke-cyan" strokeWidth="1.25" strokeLinejoin="round" />
+          <polyline key={i} points={pts} fill="none" className="stroke-data" strokeWidth="1.25" strokeLinejoin="round" />
         ))}
-        <circle cx={x(last.t)} cy={y(last.kp)} r="2.5" className="fill-gold" />
+        <circle cx={x(last.t)} cy={y(last.kp)} r="2.5" className="fill-accent" />
       </svg>
       <figcaption className="mt-1 text-[11px] leading-snug text-fg-subtle">
         Last {windowHours} h, 1-minute estimates, times UTC. Dashed line: reference threshold from

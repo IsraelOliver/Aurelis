@@ -32,7 +32,7 @@ function LayerToggle({
       aria-pressed={visible}
       className={`h-7 rounded border px-3 text-[10px] font-medium tracking-[0.2em] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
         visible
-          ? "border-gold/60 text-gold hover:border-gold"
+          ? "border-accent/60 text-accent hover:border-accent"
           : "border-line text-fg-muted hover:border-line-strong hover:text-fg"
       }`}
     >
@@ -49,7 +49,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       onClick={onClick}
       aria-pressed={active}
       className={`h-6 rounded border px-2 text-[9.5px] font-medium tracking-[0.16em] transition-colors ${
-        active ? "border-line-strong bg-deep text-fg" : "border-line text-fg-subtle hover:text-fg-muted"
+        active ? "border-line-strong bg-deep text-fg lg:border-accent/40 lg:bg-material-selected" : "border-line text-fg-subtle hover:text-fg-muted"
       }`}
     >
       {children}

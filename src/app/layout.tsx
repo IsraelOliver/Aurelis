@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { DEFAULT_THEME, THEME_SCRIPT, THEMES } from "@/lib/appearance";
 import "./globals.css";
+import "./themes.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -10,6 +12,14 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+/** Editorial display face: desktop titles only (Tailwind `font-display`). */
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
@@ -30,12 +40,23 @@ export const viewport: Viewport = {
   themeColor: "#04091b",
 };
 
+/**
+ * Desktop theme: the server renders the default (Ember); the head script
+ * applies a saved choice before the first paint. suppressHydrationWarning
+ * covers exactly those two attributes, which the server cannot know.
+ */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
+      data-theme={DEFAULT_THEME}
+      data-tone={THEMES.find((t) => t.id === DEFAULT_THEME)?.tone}
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="h-full">{children}</body>
     </html>
   );

@@ -71,7 +71,7 @@ export default function IssCamera({
           <button
             type="button"
             onClick={() => onOpenChange(true)}
-            className={`${BUTTON} mt-3 w-full border-gold/40 text-gold hover:border-gold/70`}
+            className={`${BUTTON} mt-3 w-full border-accent/40 text-accent hover:border-accent/70`}
           >
             SHOW CAMERA
           </button>

@@ -93,12 +93,12 @@ function XrayChart({ feed }: { feed: GoesXrayFeed }) {
       )}
       {runs.map((p, i) =>
         p.includes(" ") ? (
-          <polyline key={i} points={p} fill="none" className="stroke-cyan" strokeWidth="1.25" strokeLinejoin="round" />
+          <polyline key={i} points={p} fill="none" className="stroke-data" strokeWidth="1.25" strokeLinejoin="round" />
         ) : (
-          <circle key={i} cx={p.split(",")[0]} cy={p.split(",")[1]} r="1" className="fill-cyan" />
+          <circle key={i} cx={p.split(",")[0]} cy={p.split(",")[1]} r="1" className="fill-data" />
         ),
       )}
-      <circle cx={x(last.t)} cy={y(last.v)} r="2.5" className="fill-gold" />
+      <circle cx={x(last.t)} cy={y(last.v)} r="2.5" className="fill-accent" />
     </svg>
   );
 }
@@ -111,7 +111,7 @@ export default function XraySection({ feed, health }: { feed: GoesXrayFeed | nul
     <Section title="SOLAR X-RAY">
       <FeedNotice label="GOES X-RAY" health={health} />
       <div className="flex items-baseline gap-2 py-1.5">
-        <span className="font-mono text-[20px] leading-none text-gold">
+        <span className="font-mono text-[20px] leading-none text-accent">
           {latest ? scientific(latest.data.fluxWattsPerM2) : EMPTY}
         </span>
         <span className="text-[11px] text-fg-muted">W/m²</span>

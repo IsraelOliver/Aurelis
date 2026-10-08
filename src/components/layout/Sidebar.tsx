@@ -23,7 +23,7 @@ const ROW =
 function HealthDot({ health }: { health: SourceHealth }) {
   return (
     <span
-      className={`size-1.5 shrink-0 rounded-full ${health === "fresh" ? "bg-cyan" : "border border-fg-subtle"}`}
+      className={`size-1.5 shrink-0 rounded-full ${health === "fresh" ? "bg-data" : "border border-fg-subtle"}`}
       aria-hidden="true"
     />
   );
@@ -113,7 +113,7 @@ export default function Sidebar({
           const hint = isDomain ? `Open ${category.label} panel` : "Layer controls not available yet";
           const content = (
             <>
-              <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gold opacity-0 group-data-[active=true]:opacity-100" />
+              <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-accent opacity-0 group-data-[active=true]:opacity-100" />
               <span className="text-fg-subtle transition-colors group-hover:text-fg-muted">
                 <CategoryIcon id={category.id} />
               </span>
@@ -161,8 +161,8 @@ export default function Sidebar({
           title={collapsed ? "SMILEY — AURELIS personal intelligence" : "Open SMILEY (AURELIS personal intelligence)"}
           onClick={onToggleAi}
         >
-          <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gold opacity-0 group-data-[active=true]:opacity-100" />
-          <span className="text-gold/80 transition-colors group-hover:text-gold">
+          <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-accent opacity-0 group-data-[active=true]:opacity-100" />
+          <span className="text-accent/80 transition-colors group-hover:text-accent">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
               <path d="M12 3.5l8.5 8.5-8.5 8.5L3.5 12z" />
               <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />

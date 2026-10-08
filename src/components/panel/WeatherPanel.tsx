@@ -104,7 +104,7 @@ export default function WeatherPanel({
         <>
           <Section title="CURRENT CONDITIONS">
             <div className="flex items-baseline gap-2 py-1.5">
-              <span className="font-mono text-[26px] leading-none text-gold">
+              <span className="font-mono text-[26px] leading-none text-accent">
                 {c?.temperatureC !== undefined ? `${n1.format(c.temperatureC)} °C` : EMPTY}
               </span>
               <span className="ml-auto">
@@ -177,7 +177,7 @@ export default function WeatherPanel({
                   ariaLabel="Cloud cover and precipitation probability for the next 24 hours, percent."
                 />
                 <figcaption className="mt-1 text-[11px] text-fg-subtle">
-                  <span className="text-cyan">—</span> Cloud cover % · <span className="text-fg-muted">- -</span>{" "}
+                  <span className="text-data">—</span> Cloud cover % · <span className="text-fg-muted">- -</span>{" "}
                   Precipitation probability % · hourly, UTC
                 </figcaption>
               </figure>

@@ -36,7 +36,7 @@ export default function CloudsSection({
           aria-pressed={visible}
           className={`ml-auto h-7 shrink-0 rounded border px-3 text-[10px] font-medium tracking-[0.2em] transition-colors ${
             visible
-              ? "border-gold/60 text-gold hover:border-gold"
+              ? "border-accent/60 text-accent hover:border-accent"
               : "border-line-strong text-fg-muted hover:border-fg-subtle hover:text-fg"
           }`}
         >

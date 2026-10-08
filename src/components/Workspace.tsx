@@ -54,8 +54,10 @@ import {
 } from "@/lib/eonet-filters";
 import Topbar from "@/components/layout/Topbar";
 import Sidebar from "@/components/layout/Sidebar";
+import DesktopSidebar from "@/components/layout/DesktopSidebar";
 import StatusBar, { StatusSummary } from "@/components/layout/StatusBar";
 import MobileDrawer from "@/components/layout/MobileDrawer";
+import SettingsModal from "@/components/layout/SettingsModal";
 import PanelDock from "@/components/panel/PanelDock";
 import SmileyDock from "@/components/panel/SmileyDock";
 import { DEFAULT_SHEET_SIZE, SHEET_HEIGHT, type SheetSize } from "@/lib/sheet";
@@ -70,6 +72,7 @@ import IssPanel from "@/components/panel/IssPanel";
 import SpaceWeatherPanel from "@/components/panel/SpaceWeatherPanel";
 import AiPanel from "@/components/panel/AiPanel";
 import { useAiChat } from "./useAiChat";
+import { useThemeSync } from "./useTheme";
 import { buildSmileyContext, type SmileyContextInput } from "@/lib/ai/context";
 import { focusCapsule, focusKindOf } from "@/lib/ai/capsules";
 import { routeQuestion } from "@/lib/ai/router";
@@ -154,8 +157,12 @@ export default function Workspace() {
   // SMILEY: its own right-panel view over the current selection (which it keeps as FOCUS).
   const [aiOpen, setAiOpen] = useState(false);
   const aiChat = useAiChat();
+  // Desktop theme (Settings › Themes): follows changes made in another tab.
+  useThemeSync();
   // Compact layout (below lg) only: navigation drawer and bottom-sheet height. Pure UI state.
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Desktop only: the Settings window (opened from the toolbar).
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [sheetSize, setSheetSize] = useState<SheetSize>("medium");
   const selectedEntityId = panelTarget?.type === "entity" ? panelTarget.entityId : null;
   const selectEntity = useCallback((entityId: string) => {
@@ -663,14 +670,23 @@ export default function Workspace() {
 
   return (
     <>
-      <Topbar health={globalHealth} sourceSummary={sourceSummary} onOpenMenu={() => setDrawerOpen(true)} />
-      <div className="flex min-h-0 flex-1">
-        <Sidebar
+      <Topbar
+        health={globalHealth}
+        sourceSummary={sourceSummary}
+        onOpenMenu={() => setDrawerOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
+      {/* Desktop: sidebar is part of the window; the map is a raised canvas; panels float beside it. */}
+      <div className="flex min-h-0 flex-1 lg:gap-3 lg:pb-3 lg:pr-3">
+        <DesktopSidebar
           activeDomain={activeDomain}
           onOpenDomain={openDomain}
           aiOpen={aiOpen}
           onToggleAi={() => setAiOpen((open) => !open)}
           sources={sidebarSources}
+          status={(collapsed) => (
+            <StatusBar sourceCount={sourceCount} entityCount={entityCount} health={globalHealth} collapsed={collapsed} />
+          )}
         />
         <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
           <Sidebar
@@ -692,7 +708,7 @@ export default function Workspace() {
         </MobileDrawer>
         {/* --sheet-offset: how much of the map the compact bottom sheet covers (map controls sit above it). */}
         <main
-          className="relative min-w-0 flex-1"
+          className="aurelis-map-plate relative min-w-0 flex-1 lg:isolate lg:overflow-hidden lg:rounded-window lg:border lg:border-hairline-strong lg:bg-map lg:shadow-plate"
           data-sheet={panel && !aiOpen ? sheetSize : "none"}
           style={{ "--sheet-offset": panel && !aiOpen ? SHEET_HEIGHT[sheetSize] : "env(safe-area-inset-bottom)" } as React.CSSProperties}
         >
@@ -725,7 +741,8 @@ export default function Workspace() {
           )
         )}
       </div>
-      <StatusBar sourceCount={sourceCount} entityCount={entityCount} health={globalHealth} />
+      {/* Desktop Settings window (appearance): an overlay; nothing below it changes or unmounts. */}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </>
   );
 }

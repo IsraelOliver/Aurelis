@@ -40,7 +40,7 @@ export default function PanelDock({
           type="button"
           onClick={() => onSize(expanded ? "medium" : "expanded")}
           aria-label={expanded ? "Reduce panel" : "Expand panel"}
-          className="absolute right-1 top-0 grid h-11 w-11 place-items-center text-fg-subtle transition-colors hover:text-gold"
+          className="absolute right-1 top-0 grid h-11 w-11 place-items-center text-fg-subtle transition-colors hover:text-accent"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             {expanded ? <path d="M6 9l6 6 6-6" /> : <path d="M6 15l6-6 6 6" />}

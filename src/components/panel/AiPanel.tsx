@@ -28,27 +28,27 @@ function SmileyMark({ size = 56 }: { size?: number }) {
   return (
     <svg viewBox="0 0 64 64" width={size} height={size} fill="none" aria-hidden="true">
       <circle cx="32" cy="32" r="22" className="stroke-line-strong" strokeWidth="1" />
-      <ellipse cx="32" cy="32" rx="28" ry="10" transform="rotate(-24 32 32)" className="stroke-cyan/60" strokeWidth="1" />
+      <ellipse cx="32" cy="32" rx="28" ry="10" transform="rotate(-24 32 32)" className="stroke-data/60" strokeWidth="1" />
       <path d="M32 4v8M32 52v8M4 32h8M52 32h8" className="stroke-fg-subtle" strokeWidth="1" strokeLinecap="round" />
-      <path d="M32 24l8 8-8 8-8-8z" className="stroke-gold" strokeWidth="1.2" strokeLinejoin="round" />
-      <circle cx="32" cy="32" r="1.6" className="fill-gold" />
-      <circle cx="55.6" cy="21.6" r="1.8" className="fill-cyan" />
-      <circle cx="8.4" cy="42.4" r="1.2" className="fill-cyan/70" />
+      <path d="M32 24l8 8-8 8-8-8z" className="stroke-accent" strokeWidth="1.2" strokeLinejoin="round" />
+      <circle cx="32" cy="32" r="1.6" className="fill-accent" />
+      <circle cx="55.6" cy="21.6" r="1.8" className="fill-data" />
+      <circle cx="8.4" cy="42.4" r="1.2" className="fill-data/70" />
     </svg>
   );
 }
 
 function StatusDot({ status }: { status: AiChat["status"] }) {
-  if (status === "thinking") return <span className="size-1.5 animate-pulse rounded-full bg-gold" aria-hidden="true" />;
+  if (status === "thinking") return <span className="size-1.5 animate-pulse rounded-full bg-accent lg:bg-glint" aria-hidden="true" />;
   if (status === "unavailable") return <span className="size-1.5 rounded-full border border-fg-subtle" aria-hidden="true" />;
-  return <span className="size-1.5 rounded-full bg-cyan" aria-hidden="true" />;
+  return <span className="size-1.5 rounded-full bg-data" aria-hidden="true" />;
 }
 
 function Chip({ active = true, children }: { active?: boolean; children: React.ReactNode }) {
   return (
     <span
       className={`inline-flex h-5 items-center rounded-sm border px-1.5 text-[9px] font-medium tracking-[0.16em] ${
-        active ? "border-cyan/40 text-cyan" : "border-line text-fg-subtle/60"
+        active ? "border-data/40 text-data" : "border-line text-fg-subtle/60"
       }`}
     >
       {children}
@@ -71,12 +71,12 @@ function RequestMetrics({ message }: { message: AiUiMessage }) {
     ...(u ? [`input ${u.inputTokens ?? "—"} (cached ${u.cachedInputTokens ?? "—"}) · output ${u.outputTokens ?? "—"} (reasoning ${u.reasoningTokens ?? "—"})`] : []),
   ].join("\n");
   return (
-    <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[9.5px] text-fg-subtle/90" title={details}>
+    <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[9.5px] text-fg-subtle/90 lg:mt-3 lg:border-t lg:border-hairline lg:pt-2" title={details}>
       <span>
         <span className="mr-1.5 font-sans text-[9px] font-medium tracking-[0.2em]">CONTEXT</span>
-        <span className={parts.length ? "text-cyan/80" : ""}>{parts.length ? parts.join(" · ") : "NONE"}</span>
+        <span className={parts.length ? "text-data/80" : ""}>{parts.length ? parts.join(" · ") : "NONE"}</span>
       </span>
-      {meta.focusLabel && <span className="max-w-[11rem] truncate text-gold/80">{meta.focusLabel}</span>}
+      {meta.focusLabel && <span className="max-w-[11rem] truncate text-accent/80">{meta.focusLabel}</span>}
       {u && (
         <span className="ml-auto">
           {u.inputTokens !== null ? n0.format(u.inputTokens) : "—"} IN · {u.outputTokens !== null ? n0.format(u.outputTokens) : "—"} OUT
@@ -89,17 +89,17 @@ function RequestMetrics({ message }: { message: AiUiMessage }) {
 function Message({ message }: { message: AiUiMessage }) {
   if (message.role === "user") {
     return (
-      <div className="ml-10 rounded border border-gold/35 bg-elevated px-3 py-2.5">
-        <p className="mb-1 text-[9.5px] font-medium tracking-[0.24em] text-gold/80">YOU</p>
-        <p className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-fg">{message.content}</p>
+      <div className="ml-10 rounded border border-accent/35 bg-elevated px-3 py-2.5 lg:ml-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-0 lg:py-0">
+        <p className="mb-1 text-[9.5px] font-medium tracking-[0.24em] text-accent/80 lg:mb-1.5">YOU</p>
+        <p className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-fg lg:text-[14.5px] lg:font-medium lg:leading-snug">{message.content}</p>
       </div>
     );
   }
   return (
-    <div className="relative pl-3" aria-live={message.state === "streaming" ? "polite" : undefined}>
-      <span className="absolute inset-y-0.5 left-0 w-px bg-cyan/50" aria-hidden="true" />
+    <div className="relative pl-3 lg:pl-4" aria-live={message.state === "streaming" ? "polite" : undefined}>
+      <span className="absolute inset-y-0.5 left-0 w-px bg-data/50 lg:bg-gradient-to-b lg:from-data/60 lg:to-data/5" aria-hidden="true" />
       <p className="mb-1.5 flex items-center gap-2 text-[9.5px] font-medium tracking-[0.24em] text-fg-subtle">
-        <span className="size-1.5 rounded-full bg-cyan" aria-hidden="true" />
+        <span className="size-1.5 rounded-full bg-data" aria-hidden="true" />
         SMILEY
       </p>
       {message.content ? (
@@ -178,27 +178,30 @@ export default function AiPanel({
   }, []);
 
   return (
-    <aside aria-label="SMILEY" className="flex w-[420px] max-w-[50vw] shrink-0 flex-col border-l border-line bg-surface max-lg:min-h-0 max-lg:w-full max-lg:max-w-none max-lg:flex-1 max-lg:border-l-0">
-      <header className="flex items-start gap-3 border-b border-line px-4 pb-3 pt-4 max-lg:gap-2 max-lg:pl-1.5 max-lg:pt-2">
+    <aside aria-label="SMILEY" className="flex w-[380px] max-w-[42vw] shrink-0 flex-col border-l border-line bg-surface max-lg:min-h-0 max-lg:w-full max-lg:max-w-none max-lg:flex-1 max-lg:border-l-0 xl:w-[400px] lg:overflow-hidden lg:rounded-window lg:border lg:border-hairline lg:bg-material-panel lg:shadow-panel lg:backdrop-blur-material lg:backdrop-saturate-150 motion-safe:lg:animate-panel-in">
+      <header className="flex items-start gap-3 border-b border-line px-4 pb-3 pt-4 max-lg:gap-2 max-lg:pl-1.5 max-lg:pt-2 lg:items-center lg:border-hairline lg:px-5 lg:py-4">
+        <span className="hidden size-11 shrink-0 place-items-center rounded-2xl border border-hairline bg-material-group shadow-halo lg:grid" aria-hidden="true">
+          <SmileyMark size={26} />
+        </span>
         {/* Compact (full-screen SMILEY): BACK returns to the map, which never unmounted. */}
         <button
           type="button"
           onClick={onClose}
           aria-label="Back to map"
-          className="grid size-11 shrink-0 place-items-center rounded text-fg-muted transition-colors hover:text-gold lg:hidden"
+          className="grid size-11 shrink-0 place-items-center rounded text-fg-muted transition-colors hover:text-accent lg:hidden"
         >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M19 12H5M11 6l-6 6 6 6" />
           </svg>
         </button>
         <div className="min-w-0 flex-1 max-lg:pt-2">
-          <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.3em] text-fg">
-            <span className="text-gold" aria-hidden="true">◇</span>
+          <p className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.3em] text-fg lg:text-[13px] lg:tracking-[0.26em]">
+            <span className="text-accent lg:hidden" aria-hidden="true">◇</span>
             SMILEY
           </p>
-          <p className="mt-1 text-[9.5px] font-medium tracking-[0.28em] text-fg-subtle">AURELIS PERSONAL INTELLIGENCE</p>
+          <p className="mt-1 text-[9.5px] font-medium tracking-[0.28em] text-fg-subtle lg:mt-1 lg:whitespace-nowrap lg:tracking-[0.14em]">AURELIS PERSONAL INTELLIGENCE</p>
           <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[9.5px] font-medium tracking-[0.2em] text-fg-muted">
-            <span className="flex items-center gap-2" role="status">
+            <span className="flex items-center gap-2 lg:gap-1.5 lg:rounded-full lg:border lg:border-hairline lg:bg-material-group lg:px-2 lg:py-0.5" role="status">
               <StatusDot status={status} />
               {status.toUpperCase()}
             </span>
@@ -226,7 +229,7 @@ export default function AiPanel({
           }}
           disabled={messages.length === 0}
           title="New conversation (clears this chat only)"
-          className="h-7 shrink-0 rounded border border-line-strong px-2.5 text-[9.5px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-gold/60 hover:text-gold disabled:pointer-events-none disabled:opacity-40 max-lg:mt-0.5 max-lg:h-11 max-lg:px-3.5"
+          className="h-7 shrink-0 rounded border border-line-strong px-2.5 text-[9.5px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-accent/60 hover:text-accent disabled:pointer-events-none disabled:opacity-40 max-lg:mt-0.5 max-lg:h-11 max-lg:px-3.5 lg:self-start lg:rounded-full lg:border-hairline-strong lg:px-3.5 lg:duration-150"
         >
           NEW
         </button>
@@ -234,7 +237,7 @@ export default function AiPanel({
           type="button"
           onClick={onClose}
           aria-label="Close SMILEY"
-          className="-mr-1 grid size-7 shrink-0 place-items-center rounded text-fg-subtle transition-colors hover:bg-elevated hover:text-fg max-lg:hidden"
+          className="-mr-1 grid size-7 shrink-0 place-items-center rounded text-fg-subtle transition-colors hover:bg-elevated hover:text-fg max-lg:hidden lg:self-start lg:rounded-full lg:duration-150 lg:hover:bg-material-hover"
         >
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true">
             <path d="M6 6l12 12M18 6L6 18" />
@@ -248,14 +251,14 @@ export default function AiPanel({
           const el = e.currentTarget;
           stickToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
         }}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 lg:px-5 lg:py-5"
       >
         {messages.length === 0 ? (
           <div className="flex min-h-full flex-col justify-center gap-6 py-4">
             <div className="flex flex-col items-center gap-3 text-center">
               <SmileyMark />
-              <p className="text-[11px] font-semibold tracking-[0.32em] text-fg">SMILEY</p>
-              <p className="max-w-[17rem] text-[12px] leading-relaxed text-fg-muted">
+              <p className="text-[11px] font-semibold tracking-[0.32em] text-fg lg:text-fg-subtle">SMILEY</p>
+              <p className="max-w-[17rem] text-[12px] leading-relaxed text-fg-muted lg:max-w-[18rem] lg:font-display lg:text-[24px] lg:leading-[1.15] lg:text-fg">
                 Personal intelligence for your AURELIS dashboard.
               </p>
             </div>
@@ -266,16 +269,16 @@ export default function AiPanel({
                   type="button"
                   onClick={() => ask(s)}
                   disabled={busy}
-                  className="group flex items-center gap-2 rounded border border-deep bg-base/40 px-3 py-2.5 max-lg:py-3.5 text-left text-[10px] font-medium tracking-[0.18em] text-fg-muted transition-colors hover:border-gold/50 hover:text-fg"
+                  className="group flex items-center gap-2 rounded border border-deep bg-base/40 px-3 py-2.5 max-lg:py-3.5 lg:rounded-xl lg:border-hairline lg:bg-material-group lg:px-4 lg:py-3 lg:duration-150 lg:hover:border-accent/35 lg:hover:bg-material-hover text-left text-[10px] font-medium tracking-[0.18em] text-fg-muted transition-colors hover:border-accent/50 hover:text-fg"
                 >
-                  <span className="text-cyan/70 transition-colors group-hover:text-gold" aria-hidden="true">›</span>
+                  <span className="text-data/70 transition-colors group-hover:text-accent" aria-hidden="true">›</span>
                   {s}
                 </button>
               ))}
             </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-5 lg:gap-7">
             {messages.map((m) => (
               <Message key={m.id} message={m} />
             ))}
@@ -283,7 +286,7 @@ export default function AiPanel({
         )}
       </div>
 
-      <div className="border-t border-line px-4 pb-3 pt-2.5">
+      <div className="border-t border-line px-4 pb-3 pt-2.5 lg:border-hairline lg:px-5 lg:pb-4 lg:pt-3">
         <div className="mb-2 flex flex-wrap items-center gap-1" title="Domains with data loaded in AURELIS (sent only when a question needs them)">
           <span className="mr-1 text-[9px] font-medium tracking-[0.22em] text-fg-subtle">AVAILABLE</span>
           {DOMAINS.map((d) => (
@@ -293,9 +296,9 @@ export default function AiPanel({
           ))}
         </div>
         {focusLabel && (
-          <div className="mb-2 flex items-center gap-2 rounded-sm border-l-2 border-gold bg-elevated px-2.5 py-1.5">
+          <div className="mb-2 flex items-center gap-2 rounded-sm border-l-2 border-accent bg-elevated px-2.5 py-1.5 lg:rounded-lg lg:border lg:border-accent/25 lg:bg-accent/[0.05]">
             <span className="text-[9px] font-medium tracking-[0.22em] text-fg-subtle">FOCUS</span>
-            <span className="min-w-0 truncate text-[10.5px] font-medium tracking-[0.12em] text-gold">{focusLabel}</span>
+            <span className="min-w-0 truncate text-[10.5px] font-medium tracking-[0.12em] text-accent">{focusLabel}</span>
           </div>
         )}
         <form
@@ -303,7 +306,7 @@ export default function AiPanel({
             e.preventDefault();
             ask(draft);
           }}
-          className="flex items-end gap-2 rounded border border-line-strong bg-base px-2.5 py-2 focus-within:border-cyan/50"
+          className="flex items-end gap-2 rounded border border-line-strong bg-base px-2.5 py-2 focus-within:border-data/50 lg:rounded-2xl lg:border-hairline-strong lg:bg-material-field lg:px-4 lg:py-2.5 lg:shadow-field lg:transition-colors lg:focus-within:border-data/40"
         >
           <label htmlFor="smiley-input" className="sr-only">
             Ask Smiley
@@ -322,7 +325,7 @@ export default function AiPanel({
                 ask(draft);
               }
             }}
-            className="min-h-6 flex-1 resize-none bg-transparent py-0.5 text-[12.5px] leading-relaxed text-fg outline-none max-lg:text-[16px] placeholder:text-[10.5px] placeholder:tracking-[0.2em] placeholder:text-fg-subtle"
+            className="min-h-6 flex-1 resize-none bg-transparent py-0.5 text-[12.5px] leading-relaxed text-fg outline-none max-lg:text-[16px] lg:text-[13.5px] placeholder:text-[10.5px] placeholder:tracking-[0.2em] placeholder:text-fg-subtle"
           />
           {busy ? (
             <button
@@ -330,7 +333,7 @@ export default function AiPanel({
               onClick={chat.stop}
               aria-label="Stop the answer"
               title="Stop"
-              className="flex h-7 shrink-0 items-center gap-1.5 rounded border border-line-strong px-2 text-[9.5px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-gold/60 hover:text-gold max-lg:h-11 max-lg:px-3"
+              className="flex h-7 shrink-0 items-center gap-1.5 rounded border border-line-strong px-2 text-[9.5px] font-medium tracking-[0.2em] text-fg-muted transition-colors hover:border-accent/60 hover:text-accent max-lg:h-11 max-lg:px-3"
             >
               <span className="size-2 rounded-[1px] bg-current" aria-hidden="true" />
               STOP
@@ -340,8 +343,8 @@ export default function AiPanel({
               type="submit"
               disabled={!canSend}
               aria-label="Send"
-              className={`grid size-7 shrink-0 place-items-center rounded transition-colors max-lg:size-11 ${
-                canSend ? "text-gold hover:bg-elevated" : "text-fg-subtle/50"
+              className={`grid size-7 shrink-0 place-items-center rounded transition-colors max-lg:size-11 lg:size-8 lg:rounded-full ${
+                canSend ? "text-accent hover:bg-elevated lg:text-base lg:shadow-halo lg:[background:var(--accent-fill)] lg:hover:brightness-110" : "text-fg-subtle/50"
               }`}
             >
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

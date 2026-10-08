@@ -39,7 +39,7 @@ export default function EonetEventPanel({
             <button
               type="button"
               onClick={onHideEonet}
-              className="ml-auto h-7 rounded border border-gold/60 px-3 text-[10px] font-medium tracking-[0.2em] text-gold transition-colors hover:border-gold"
+              className="ml-auto h-7 rounded border border-accent/60 px-3 text-[10px] font-medium tracking-[0.2em] text-accent transition-colors hover:border-accent"
             >
               HIDE EONET
             </button>

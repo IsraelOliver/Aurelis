@@ -44,7 +44,7 @@ export default function EarthquakePanel({
       onClose={onClose}
     >
       <div className="flex items-baseline gap-2 px-4 pb-4">
-        <span className="font-mono text-[30px] leading-none text-cyan">
+        <span className="font-mono text-[30px] leading-none text-data">
           {magnitude ?? EMPTY}
         </span>
         <span className="text-[10px] font-medium tracking-[0.18em] text-fg-subtle">
@@ -53,7 +53,7 @@ export default function EarthquakePanel({
         <button
           type="button"
           onClick={onHideEarthquakes}
-          className="ml-auto h-7 self-center rounded border border-gold/60 px-3 text-[10px] font-medium tracking-[0.2em] text-gold transition-colors hover:border-gold"
+          className="ml-auto h-7 self-center rounded border border-accent/60 px-3 text-[10px] font-medium tracking-[0.2em] text-accent transition-colors hover:border-accent"
         >
           HIDE EARTHQUAKES
         </button>

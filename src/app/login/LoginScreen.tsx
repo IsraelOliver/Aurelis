@@ -27,9 +27,9 @@ function Globe({ className }: { className?: string }) {
       <ellipse cx="200" cy="200" rx="58" ry="150" className="stroke-line" strokeWidth="0.7" />
       <ellipse cx="200" cy="200" rx="112" ry="150" className="stroke-line" strokeWidth="0.7" />
       <path d="M50 200h300" className="stroke-line" strokeWidth="0.7" />
-      <ellipse cx="200" cy="200" rx="196" ry="70" transform="rotate(-22 200 200)" className="stroke-cyan/40" strokeWidth="0.9" />
-      <circle cx="374" cy="128" r="3" className="fill-cyan/80" />
-      <circle cx="200" cy="200" r="2.2" className="fill-gold/80" />
+      <ellipse cx="200" cy="200" rx="196" ry="70" transform="rotate(-22 200 200)" className="stroke-data/40" strokeWidth="0.9" />
+      <circle cx="374" cy="128" r="3" className="fill-data/80" />
+      <circle cx="200" cy="200" r="2.2" className="fill-accent/80" />
     </svg>
   );
 }
@@ -39,9 +39,9 @@ function Mark() {
   return (
     <svg viewBox="0 0 64 64" width="44" height="44" fill="none" aria-hidden="true">
       <circle cx="32" cy="32" r="20" className="stroke-line-strong" strokeWidth="1.2" />
-      <ellipse cx="32" cy="32" rx="29" ry="10" transform="rotate(-22 32 32)" className="stroke-cyan/70" strokeWidth="1.2" />
-      <path d="M32 26l6 6-6 6-6-6z" className="stroke-gold" strokeWidth="1.4" strokeLinejoin="round" />
-      <circle cx="58" cy="22.5" r="2" className="fill-cyan" />
+      <ellipse cx="32" cy="32" rx="29" ry="10" transform="rotate(-22 32 32)" className="stroke-data/70" strokeWidth="1.2" />
+      <path d="M32 26l6 6-6 6-6-6z" className="stroke-accent" strokeWidth="1.4" strokeLinejoin="round" />
+      <circle cx="58" cy="22.5" r="2" className="fill-data" />
     </svg>
   );
 }
@@ -57,7 +57,7 @@ function Field({
       <input
         id={id}
         {...input}
-        className="h-10 rounded border border-line-strong bg-base px-3 text-[13px] text-fg outline-none max-md:h-11 max-md:text-[16px] transition-colors placeholder:text-fg-subtle/60 focus:border-cyan/60 disabled:opacity-60"
+        className="h-10 rounded border border-line-strong bg-base px-3 text-[13px] text-fg outline-none max-md:h-11 max-md:text-[16px] transition-colors placeholder:text-fg-subtle/60 focus:border-data/60 disabled:opacity-60"
       />
     </label>
   );
@@ -122,7 +122,7 @@ export default function LoginScreen({ unavailable }: { unavailable: boolean }) {
             <Mark />
           </div>
           <p className="flex items-center gap-3">
-            <span className="size-2 rotate-45 bg-gold" aria-hidden="true" />
+            <span className="size-2 rotate-45 bg-accent" aria-hidden="true" />
             <span className="text-[22px] font-semibold tracking-[0.5em] text-fg">AURELIS</span>
           </p>
           <p className="mt-2 text-[9.5px] font-medium tracking-[0.3em] text-fg-subtle">
@@ -136,7 +136,7 @@ export default function LoginScreen({ unavailable }: { unavailable: boolean }) {
           aria-describedby="login-status"
         >
           <p className="mb-5 flex items-center gap-2 text-[10px] font-medium tracking-[0.3em] text-fg-muted">
-            <span className="size-1.5 rounded-full bg-gold" aria-hidden="true" />
+            <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
             AUTHORIZED ACCESS
           </p>
           <div className="flex flex-col gap-4">
@@ -167,7 +167,7 @@ export default function LoginScreen({ unavailable }: { unavailable: boolean }) {
           <button
             type="submit"
             disabled={busy || unavailable}
-            className="mt-6 flex h-10 w-full items-center justify-center rounded border border-gold/70 bg-gold/10 text-[10.5px] font-semibold tracking-[0.32em] text-gold transition-colors hover:bg-gold hover:text-base disabled:pointer-events-none disabled:opacity-60"
+            className="mt-6 flex h-10 w-full items-center justify-center rounded border border-accent/70 bg-accent/10 text-[10.5px] font-semibold tracking-[0.32em] text-accent transition-colors hover:bg-accent hover:text-base disabled:pointer-events-none disabled:opacity-60"
           >
             {busy ? "AUTHENTICATING..." : "ENTER AURELIS"}
           </button>
@@ -175,7 +175,7 @@ export default function LoginScreen({ unavailable }: { unavailable: boolean }) {
           <div id="login-status" role="status" aria-live="polite" className="min-h-[44px] pt-4">
             {state.kind === "error" && (
               <div className="rounded border border-line px-3 py-2">
-                <p className="text-[10px] font-semibold tracking-[0.28em] text-gold">{state.title}</p>
+                <p className="text-[10px] font-semibold tracking-[0.28em] text-accent">{state.title}</p>
                 <p className="mt-0.5 text-[11.5px] text-fg-muted">{state.detail}</p>
               </div>
             )}

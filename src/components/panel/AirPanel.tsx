@@ -58,7 +58,7 @@ export default function AirPanel({
     <PanelShell eyebrow="AIR" title="Air traffic" sourceHealth={feed && aircraftVisible ? health : undefined} onClose={onClose}>
       <Section title="GLOBAL COVERAGE">
         <div className="flex items-baseline gap-2 py-1.5">
-          <span className="font-mono text-[26px] leading-none text-cyan">{feed ? n0.format(feed.aircraft.length) : "—"}</span>
+          <span className="font-mono text-[26px] leading-none text-data">{feed ? n0.format(feed.aircraft.length) : "—"}</span>
           <span className="text-[10px] tracking-[0.18em] text-fg-subtle">AIRCRAFT WITH POSITION</span>
           <button
             type="button"
@@ -66,7 +66,7 @@ export default function AirPanel({
             aria-pressed={aircraftVisible}
             className={`ml-auto h-7 shrink-0 rounded border px-3 text-[10px] font-medium tracking-[0.2em] transition-colors ${
               aircraftVisible
-                ? "border-gold/60 text-gold hover:border-gold"
+                ? "border-accent/60 text-accent hover:border-accent"
                 : "border-line-strong text-fg-muted hover:border-fg-subtle hover:text-fg"
             }`}
           >
@@ -83,8 +83,8 @@ export default function AirPanel({
         {feed && refreshing && <Note>Showing the previous snapshot while refreshing…</Note>}
         {!aircraftVisible && feed && <Note>Aircraft hidden: refresh paused (no credits spent).</Note>}
         {quotaLow && (
-          <div role="status" className="mt-2 rounded border border-gold/40 px-3 py-2 text-[11px] text-fg-muted">
-            <span className="text-gold">OPEN SKY QUOTA LOW</span> · Automatic refresh paused.
+          <div role="status" className="mt-2 rounded border border-accent/40 px-3 py-2 text-[11px] text-fg-muted">
+            <span className="text-accent">OPEN SKY QUOTA LOW</span> · Automatic refresh paused.
             <button
               type="button"
               onClick={onRefreshOnce}

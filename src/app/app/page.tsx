@@ -5,7 +5,7 @@ import { requirePageAuth } from "@/lib/auth";
 export default async function AppPage() {
   await requirePageAuth();
   return (
-    <div className="flex h-dvh flex-col overflow-hidden">
+    <div className="aurelis-shell flex h-dvh flex-col overflow-hidden">
       <Workspace />
     </div>
   );

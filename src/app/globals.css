@@ -1,11 +1,12 @@
 @import "tailwindcss";
 
 /*
- * AURELIS palette — the only place colors are defined.
- * Gold: brand, primary selection, important action.
- * Cyan: information, data, technical indicators, secondary focus.
- * Text (white): primary text. Grays: secondary, unavailable, no-data.
- * Deep blue: surfaces, discreet selection, depth.
+ * AURELIS palette — the only place colors are defined (desktop themes:
+ * themes.css, imported after this file by app/layout.tsx).
+ * The --aurelis-* values below are FIXED: the map and every data layer read
+ * them from <html> at runtime (aircraft, aurora, clouds, earthquakes, EONET,
+ * ISS, sky), and the login screen and compact layouts use them as they are.
+ * Desktop themes never change them on <html>.
  * No severity colors (warning/danger/success) until real data exists.
  */
 :root {
@@ -38,28 +39,144 @@
 
   --aurelis-border: rgba(152, 155, 162, 0.16);
   --aurelis-border-strong: rgba(152, 155, 162, 0.3);
+
+  /*
+   * Semantic UI tokens — what components use (through the Tailwind colors
+   * below). Roles, not hues:
+   *   accent-selection  selection, focus, primary call, active state, action
+   *   accent-data       metrics, indicators, source state, live data
+   *   accent-live       the global LIVE signal
+   *   accent-focus      keyboard focus ring
+   *   accent-deep       the theme's structural / quiet accent
+   * Defaults = AURELIS Navy, the compact/mobile look; desktop themes
+   * (themes.css) re-point them inside .aurelis-shell.
+   */
+  --bg-app: var(--aurelis-bg);
+  --bg-surface: var(--aurelis-surface);
+  --bg-elevated: var(--aurelis-surface-elevated);
+  --text-primary: var(--aurelis-text);
+  --text-secondary: var(--aurelis-text-muted);
+  --text-tertiary: var(--aurelis-text-subtle);
+  --border-soft: var(--aurelis-border);
+  --border-strong: var(--aurelis-border-strong);
+  --accent-selection: var(--aurelis-gold);
+  --accent-selection-muted: var(--aurelis-gold-muted);
+  --accent-data: var(--aurelis-cyan);
+  --accent-live: var(--aurelis-cyan);
+  --accent-focus: var(--aurelis-cyan);
+  --accent-deep: var(--aurelis-blue);
+
+  /*
+   * Desktop materials (`lg` and up only). Depth levels:
+   * 0 window · 1 navigation (sidebar, toolbar) · 2 panels (inspector,
+   * SMILEY) · 3 floating map controls · 4 temporary overlays (settings).
+   */
+  --bg-panel: rgba(8, 18, 40, 0.86);
+  --material-float: rgba(9, 20, 44, 0.76);
+  --material-field: rgba(238, 238, 239, 0.045);
+  --material-hover: rgba(238, 238, 239, 0.05);
+  --material-selected: rgba(28, 54, 116, 0.62);
+  --material-group: rgba(238, 238, 239, 0.022);
+  --material-hairline: rgba(238, 238, 239, 0.075);
+  --material-hairline-strong: rgba(238, 238, 239, 0.13);
+  --material-scrim: rgba(2, 5, 14, 0.55);
+  /* Level-4 windows (Settings) float over the dark map: near-opaque in every theme. */
+  --material-window: rgba(8, 18, 40, 0.94);
+  --material-blur: 24px;
+  --shell-background: radial-gradient(1100px 520px at 12% -12%, rgba(11, 32, 83, 0.55), transparent 70%), var(--bg-app);
+  --elevation-panel: 0 24px 60px -30px rgba(0, 0, 0, 0.8), 0 2px 8px -4px rgba(0, 0, 0, 0.45);
+  --elevation-float: 0 10px 28px -14px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.35);
+  --elevation-thumb: 0 1px 2px rgba(0, 0, 0, 0.45), inset 0 0 0 0.5px rgba(238, 238, 239, 0.08);
+  --elevation-field: inset 0 1px 0 rgba(238, 238, 239, 0.03);
+  --elevation-window: 0 40px 100px -40px rgba(0, 0, 0, 0.9), 0 4px 16px -6px rgba(0, 0, 0, 0.5);
+  /* The map plate: always over the (dark) map, so light marks in every theme. */
+  --map-frame-mark: rgba(238, 238, 239, 0.32);
+  /* MapLibre's control icons are dark SVGs: lightened on dark materials. */
+  --map-ctrl-icon-filter: invert(0.8);
 }
 
+/*
+ * Tailwind colors → semantic tokens. `inline`: utilities reference the
+ * token directly, so they follow the desktop theme of their container.
+ */
 @theme inline {
-  --color-base: var(--aurelis-bg);
-  --color-surface: var(--aurelis-surface);
-  --color-elevated: var(--aurelis-surface-elevated);
-  --color-deep: var(--aurelis-blue);
-  --color-gold: var(--aurelis-gold);
-  --color-gold-muted: var(--aurelis-gold-muted);
-  --color-cyan: var(--aurelis-cyan);
-  --color-fg: var(--aurelis-text);
-  --color-fg-muted: var(--aurelis-text-muted);
-  --color-fg-subtle: var(--aurelis-text-subtle);
-  --color-line: var(--aurelis-border);
-  --color-line-strong: var(--aurelis-border-strong);
+  --color-base: var(--bg-app);
+  --color-surface: var(--bg-surface);
+  --color-elevated: var(--bg-elevated);
+  --color-deep: var(--accent-deep);
+  --color-accent: var(--accent-selection);
+  --color-accent-muted: var(--accent-selection-muted);
+  --color-data: var(--accent-data);
+  --color-live: var(--accent-live);
+  /* Desktop only (set by themes.css). */
+  --color-glint: var(--accent-glint);
+  --color-fg: var(--text-primary);
+  --color-fg-muted: var(--text-secondary);
+  --color-fg-subtle: var(--text-tertiary);
+  --color-line: var(--border-soft);
+  --color-line-strong: var(--border-strong);
+  /* The map's own backdrop: fixed, never themed. */
+  --color-map: var(--aurelis-bg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Editorial display face (desktop titles only). */
+  --font-display: var(--font-instrument-serif), ui-serif, Georgia, serif;
+
+  /* Desktop material system (used only with `lg:` utilities). */
+  --color-material-panel: var(--bg-panel);
+  --color-material-float: var(--material-float);
+  --color-material-field: var(--material-field);
+  --color-material-hover: var(--material-hover);
+  --color-material-selected: var(--material-selected);
+  --color-material-group: var(--material-group);
+  --color-scrim: var(--material-scrim);
+  --color-material-window: var(--material-window);
+  --color-hairline: var(--material-hairline);
+  --color-hairline-strong: var(--material-hairline-strong);
+  --radius-window: 1.125rem;
+  --radius-control: 0.625rem;
+  --shadow-panel: var(--elevation-panel);
+  --shadow-float: var(--elevation-float);
+  --shadow-thumb: var(--elevation-thumb);
+  --shadow-field: var(--elevation-field);
+  --shadow-window: var(--elevation-window);
+  --shadow-plate: var(--elevation-plate);
+  --shadow-halo: var(--elevation-halo);
+  --blur-material: var(--material-blur);
+  --animate-panel-in: aurelis-panel-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-window-in: aurelis-window-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-scrim-in: aurelis-scrim-in 200ms ease-out;
+}
+
+@keyframes aurelis-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes aurelis-window-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes aurelis-scrim-in {
+  from {
+    opacity: 0;
+  }
 }
 
 body {
-  background: var(--aurelis-bg);
-  color: var(--aurelis-text);
+  background: var(--bg-app);
+  color: var(--text-primary);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
@@ -71,7 +188,7 @@ body {
 /* In the base layer so components can replace it with their own focus style. */
 @layer base {
   :focus-visible {
-    outline: 1px solid var(--aurelis-cyan);
+    outline: 1px solid var(--accent-focus);
     outline-offset: 2px;
   }
 }
@@ -159,5 +276,74 @@ body {
 @media (width < 64rem) and (height < 32rem) {
   main[data-sheet="expanded"] .aurelis-map-controls {
     display: none;
+  }
+}
+
+/*
+ * Desktop (Tailwind `lg`, 64rem and up) — AURELIS 1.1 visual identity.
+ * The window takes the theme's ground; the map is a plate set into it, with
+ * four registration marks (cartographic, not decorative chrome); MapLibre's
+ * zoom becomes floating material. The attribution stays with the always-dark
+ * map. Compact layouts are unaffected.
+ */
+@media (width >= 64rem) {
+  .aurelis-shell {
+    color: var(--text-primary);
+    background: var(--shell-background);
+  }
+  .aurelis-shell * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--material-hairline-strong) transparent;
+  }
+  .aurelis-map-plate::after {
+    content: "";
+    position: absolute;
+    inset: 9px;
+    z-index: 3;
+    pointer-events: none;
+    --m: var(--map-frame-mark);
+    background:
+      linear-gradient(var(--m), var(--m)) top left / 11px 1px,
+      linear-gradient(var(--m), var(--m)) top left / 1px 11px,
+      linear-gradient(var(--m), var(--m)) top right / 11px 1px,
+      linear-gradient(var(--m), var(--m)) top right / 1px 11px,
+      linear-gradient(var(--m), var(--m)) bottom left / 11px 1px,
+      linear-gradient(var(--m), var(--m)) bottom left / 1px 11px,
+      linear-gradient(var(--m), var(--m)) bottom right / 11px 1px,
+      linear-gradient(var(--m), var(--m)) bottom right / 1px 11px;
+    background-repeat: no-repeat;
+  }
+  main .maplibregl-ctrl-group {
+    background: var(--material-float) !important;
+    border: 1px solid var(--material-hairline-strong);
+    border-radius: 12px !important;
+    box-shadow: var(--elevation-float) !important;
+    backdrop-filter: blur(16px) saturate(1.3);
+    overflow: hidden;
+  }
+  main .maplibregl-ctrl-group button {
+    width: 34px !important;
+    height: 34px !important;
+  }
+  main .maplibregl-ctrl-group button + button {
+    border-top: 1px solid var(--material-hairline) !important;
+  }
+  main .maplibregl-ctrl-group button:hover {
+    background-color: var(--material-hover) !important;
+  }
+  main .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+    filter: var(--map-ctrl-icon-filter);
+  }
+  main .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+    margin: 0 20px 22px 0;
+  }
+  main .maplibregl-ctrl-bottom-right .maplibregl-ctrl.maplibregl-ctrl-attrib {
+    margin: 0 !important;
+  }
+  main .maplibregl-ctrl.maplibregl-ctrl-attrib {
+    background: color-mix(in srgb, var(--aurelis-bg) 72%, transparent) !important;
+    border-top-left-radius: 8px;
+    padding: 2px 10px;
+    backdrop-filter: blur(10px);
   }
 }
