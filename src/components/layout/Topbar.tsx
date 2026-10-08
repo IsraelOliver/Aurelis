@@ -101,7 +101,7 @@ export default function Topbar({
           AURELIS
         </span>
         <span className="hidden font-mono text-[9px] text-fg-subtle sm:inline">
-          v0.1
+          v1.0
         </span>
       </div>
 

@@ -18,16 +18,29 @@ Funcionalidade principal implementada e em `main`:
 
 **Pendências antes do release:**
 
-1. **Resolver AIR/OpenSky no Railway.** Em produção o token endpoint da OpenSky não é alcançado ("token endpoint unreachable"); localmente funciona. O diagnóstico de rede no container está pendente.
-2. **Smoke final de produção**: desktop, mobile, SMILEY, auth, AIR e Satellite.
-3. **Auditoria final**: segredos, variáveis de ambiente, working tree.
-4. **Tag e release `v1.0.0`.**
+1. **Smoke final de produção**: desktop, mobile, SMILEY, auth, Satellite e AIR (falha graciosa).
+2. **Auditoria final**: segredos, variáveis de ambiente, working tree.
+3. **Tag e release `v1.0.0`.**
+
+**Known hosted limitation — AIR / OpenSky.** O diagnóstico foi concluído dentro do container do Railway: `auth.opensky-network.org:443` e `opensky-network.org:443` terminam em `UND_ERR_CONNECT_TIMEOUT`, antes de qualquer resposta HTTP. O deployment atual no Railway não alcança a infraestrutura OpenSky; localmente o mesmo código funciona. No 1.0 o AIR em produção mostra SOURCE UNAVAILABLE e o restante do AURELIS segue funcional. A migração de provider fica para depois do 1.0.
 
 Checklist detalhado: [`docs/RELEASE_1.0.md`](RELEASE_1.0.md).
 
 ---
 
 ## POST-1.0
+
+### AIR Provider Migration / Hosting Compatibility
+
+Avaliar uma fonte de tráfego aéreo que:
+
+- permita deployment hospedado;
+- suporte a escala global necessária;
+- tenha termos e licenciamento compatíveis;
+- preserve a proveniência;
+- suporte o modelo de atualização do AURELIS.
+
+Nenhum provider escolhido; nada implementado.
 
 ### AURELIS 1.1 — Visual Identity Rework
 

@@ -75,7 +75,7 @@ Hoje: USGS ~60 s; ISS ~5 s. Fontes futuras podem ter frequências diferentes, ou
 
 ### Marco atual
 
-- **CURRENT MILESTONE:** terminar e publicar o **AURELIS 1.0**. Pendências: AIR/OpenSky no Railway, smoke final de produção, auditoria e tag `v1.0.0` (checklist em `docs/RELEASE_1.0.md`).
+- **CURRENT MILESTONE:** terminar e publicar o **AURELIS 1.0**: smoke final de produção, auditoria e tag `v1.0.0` (checklist em `docs/RELEASE_1.0.md`). AIR no Railway é uma known hosted limitation do 1.0: o container não alcança a OpenSky (`UND_ERR_CONNECT_TIMEOUT`), então o AIR mostra SOURCE UNAVAILABLE em produção; a migração de provider fica para depois do 1.0.
 - **NEXT AFTER RELEASE:** AURELIS 1.1 — Visual Identity Rework.
 - **AFTER 1.1:** SMILEY 2A — Persistent Memory.
 - Ordem oficial completa: `docs/ROADMAP.md`. *AURELIS is never finished forever. Versions are finished.*
