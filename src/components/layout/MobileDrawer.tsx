@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * Compact-layout navigation drawer (below `lg`): slides in from the left over
+ * Tablet navigation drawer (`md` to `lg`; phones use the tab bar of the
+ * mobile app shell): slides in from the left over
  * a dark overlay; tap outside or Escape (handled by Workspace) closes it.
  * Always mounted (inert while closed), so opening it never remounts anything
  * and domain state is untouched. Respects the device safe areas.
@@ -16,7 +17,7 @@ export default function MobileDrawer({
   children: React.ReactNode;
 }) {
   return (
-    <div className="lg:hidden" inert={!open}>
+    <div className="lg:hidden phone:hidden" inert={!open}>
       <div
         aria-hidden="true"
         onClick={onClose}

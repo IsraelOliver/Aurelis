@@ -58,9 +58,13 @@ import DesktopSidebar from "@/components/layout/DesktopSidebar";
 import StatusBar, { StatusSummary } from "@/components/layout/StatusBar";
 import MobileDrawer from "@/components/layout/MobileDrawer";
 import SettingsModal from "@/components/layout/SettingsModal";
+import MobileShell from "@/components/mobile/MobileShell";
+import MobileDomainControls from "@/components/mobile/MobileDomainControls";
+import WeatherInspector from "@/components/mobile/WeatherInspector";
+import type { MobileTab } from "@/components/mobile/MobileTabBar";
 import PanelDock from "@/components/panel/PanelDock";
 import SmileyDock from "@/components/panel/SmileyDock";
-import { DEFAULT_SHEET_SIZE, SHEET_HEIGHT, type SheetSize } from "@/lib/sheet";
+import { DEFAULT_SHEET_SIZE, PHONE_SHEET_HEIGHT, SHEET_HEIGHT, type SheetSize } from "@/lib/sheet";
 import MapView from "@/components/map/MapView";
 import EarthquakePanel from "@/components/panel/EarthquakePanel";
 import EonetEventPanel from "@/components/panel/EonetEventPanel";
@@ -163,6 +167,10 @@ export default function Workspace() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Desktop only: the Settings window (opened from the toolbar).
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // Phone app shell only: the SETTINGS tab (MAP and SMILEY derive from aiOpen). Pure UI state.
+  const [phoneSettings, setPhoneSettings] = useState(false);
+  // SMILEY's unsent text, kept here so leaving the SMILEY tab does not lose it.
+  const [aiDraft, setAiDraft] = useState("");
   const [sheetSize, setSheetSize] = useState<SheetSize>("medium");
   const selectedEntityId = panelTarget?.type === "entity" ? panelTarget.entityId : null;
   const selectEntity = useCallback((entityId: string) => {
@@ -285,8 +293,14 @@ export default function Workspace() {
   // WEATHER (Open-Meteo, query-scoped): the point chosen on the map; session state only.
   // No point = no query, no polling, and the source is not listed or counted.
   const [weatherPoint, setWeatherPoint] = useState<WeatherPoint | null>(null);
+  // Phone only: the Weather popover over the map (open after a pick, closed by × or leaving
+  // Weather; the point is kept) and the full Weather sheet as an optional detailed view.
+  const [weatherPopover, setWeatherPopover] = useState(false);
+  const [weatherDetails, setWeatherDetails] = useState(false);
   const pickWeatherPoint = useCallback((p: WeatherPoint) => {
     setWeatherPoint({ latitude: round5(p.latitude), longitude: round5(p.longitude) });
+    setWeatherPopover(true);
+    setWeatherDetails(false);
   }, []);
   // AIR (OpenSky, GLOBAL): one /states/all snapshot, refreshed only while AIR is active —
   // AIR panel or a selected aircraft open, and aircraft shown. Elsewhere (or hidden) polling
@@ -459,7 +473,20 @@ export default function Workspace() {
   // At most one panel: a domain view, or the selected entity (which belongs to exactly one source).
   let panel: React.ReactNode = null;
   const close = () => setPanelTarget(null);
-  if (panelTarget?.type === "domain" && panelTarget.domain === "weather") {
+  const weatherDomain = panelTarget?.type === "domain" && panelTarget.domain === "weather";
+  // Leaving Weather closes its phone popover and detailed view (the point stays).
+  // Adjusted during render (React's pattern for derived resets).
+  const [weatherDomainSeen, setWeatherDomainSeen] = useState(false);
+  if (weatherDomain !== weatherDomainSeen) {
+    setWeatherDomainSeen(weatherDomain);
+    if (!weatherDomain) {
+      setWeatherPopover(false);
+      setWeatherDetails(false);
+    }
+  }
+  // Phone: Weather starts on the map (no sheet) unless its detailed view was asked for.
+  const phoneSheetHidden = weatherDomain && !weatherDetails;
+  if (weatherDomain) {
     panel = (
       <WeatherPanel
         point={weatherPoint}
@@ -473,7 +500,15 @@ export default function Workspace() {
           failed: clouds.lastAttemptFailed,
         }}
         onToggleClouds={() => toggleLayer("clouds")}
-        onClose={close}
+        onClose={
+          weatherDetails
+            ? () => {
+                // Back to the map (and the popover); the hidden sheet drops back to its default height.
+                setWeatherDetails(false);
+                setSheetSize(DEFAULT_SHEET_SIZE);
+              }
+            : close
+        }
       />
     );
   } else if (panelTarget?.type === "domain" && panelTarget.domain === "air") {
@@ -663,19 +698,38 @@ export default function Workspace() {
       focusLabel={aiOpen ? (focusCapsule(aiFocusId, aiData, true)?.label ?? null) : null}
       prepare={prepareAiRequest}
       onClose={() => setAiOpen(false)}
+      draft={aiDraft}
+      onDraftChange={setAiDraft}
     />
   ) : (
     panel
   );
 
+  // Phone app shell: MAP · SMILEY · SETTINGS over the same state (the map never unmounts).
+  const mobileTab: MobileTab = phoneSettings ? "settings" : aiOpen ? "smiley" : "map";
+  const onMobileTab = (tab: MobileTab) => {
+    setPhoneSettings(tab === "settings");
+    setAiOpen(tab === "smiley");
+  };
+  // Live figures for the phone Domains sheet: what the map shows (EONET within the current filters).
+  const domainCounts = {
+    ...(usgs.snapshot || eonet.snapshot
+      ? { disasters: ((usgs.snapshot?.entities.length ?? 0) + eonetViewIds.size).toLocaleString("en-US") }
+      : {}),
+    ...(airActive && air.snapshot ? { air: air.snapshot.aircraft.length.toLocaleString("en-US") } : {}),
+  };
+
   return (
     <>
-      <Topbar
-        health={globalHealth}
-        sourceSummary={sourceSummary}
-        onOpenMenu={() => setDrawerOpen(true)}
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
+      {/* Desktop and tablet toolbar; phones use the floating map header of the mobile shell. */}
+      <div className="contents phone:hidden">
+        <Topbar
+          health={globalHealth}
+          sourceSummary={sourceSummary}
+          onOpenMenu={() => setDrawerOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      </div>
       {/* Desktop: sidebar is part of the window; the map is a raised canvas; panels float beside it. */}
       <div className="flex min-h-0 flex-1 lg:gap-3 lg:pb-3 lg:pr-3">
         <DesktopSidebar
@@ -706,11 +760,22 @@ export default function Workspace() {
             onClose={() => setDrawerOpen(false)}
           />
         </MobileDrawer>
-        {/* --sheet-offset: how much of the map the compact bottom sheet covers (map controls sit above it). */}
+        {/* --sheet-offset: how much of the map the compact bottom sheet covers (map controls sit above it);
+            --sheet-offset-phone: the same on phones, above the tab bar. */}
         <main
           className="aurelis-map-plate relative min-w-0 flex-1 lg:isolate lg:overflow-hidden lg:rounded-window lg:border lg:border-hairline-strong lg:bg-map lg:shadow-plate"
           data-sheet={panel && !aiOpen ? sheetSize : "none"}
-          style={{ "--sheet-offset": panel && !aiOpen ? SHEET_HEIGHT[sheetSize] : "env(safe-area-inset-bottom)" } as React.CSSProperties}
+          data-domain-controls={weatherDomain && !aiOpen && !weatherDetails ? "weather" : undefined}
+          data-inspect={weatherDomain && !aiOpen && !(weatherPoint && weatherPopover) ? "weather" : undefined}
+          style={
+            {
+              "--sheet-offset": panel && !aiOpen ? SHEET_HEIGHT[sheetSize] : "env(safe-area-inset-bottom)",
+              "--sheet-offset-phone":
+                panel && !aiOpen && !phoneSheetHidden
+                  ? `calc(${PHONE_SHEET_HEIGHT[sheetSize]} + var(--tabbar-space))`
+                  : "var(--tabbar-space)",
+            } as React.CSSProperties
+          }
         >
           <MapView
             earthquakes={usgs.snapshot}
@@ -729,13 +794,20 @@ export default function Workspace() {
             aircraft={airLayerData}
             aircraftShown={airActive}
           />
+          {/* Phone: domain-specific map controls (Weather → Clouds). */}
+          {weatherDomain && !aiOpen && !weatherDetails && (
+            <MobileDomainControls
+              domain="weather"
+              clouds={{ on: layerVisibility.clouds, onToggle: () => toggleLayer("clouds") }}
+            />
+          )}
         </main>
         {/* Below lg: SMILEY full screen; data panels in the bottom sheet. lg+: both are the side panel. */}
         {aiOpen ? (
           <SmileyDock>{rightPanel}</SmileyDock>
         ) : (
           rightPanel && (
-            <PanelDock size={sheetSize} onSize={setSheetSize}>
+            <PanelDock size={sheetSize} onSize={setSheetSize} phoneHidden={phoneSheetHidden}>
               {rightPanel}
             </PanelDock>
           )
@@ -743,6 +815,34 @@ export default function Workspace() {
       </div>
       {/* Desktop Settings window (appearance): an overlay; nothing below it changes or unmounts. */}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {/* Phone: Weather inspection (instruction, then the point's popover) over the map. */}
+      {weatherDomain && !aiOpen && !phoneSettings && !weatherDetails && (
+        <WeatherInspector
+          point={weatherPoint}
+          feed={weather.snapshot}
+          failed={weather.lastAttemptFailed && !weather.snapshot}
+          popoverOpen={weatherPopover}
+          onClose={() => setWeatherPopover(false)}
+          onRetry={weather.retry}
+          onDetails={() => {
+            setWeatherDetails(true);
+            setSheetSize("expanded");
+          }}
+        />
+      )}
+      {/* Phone app shell (Tailwind `phone`): tab bar, map header, Domains / Sources sheets, Settings screen. */}
+      <MobileShell
+        tab={mobileTab}
+        onTab={onMobileTab}
+        health={globalHealth}
+        sources={sidebarSources}
+        sourceCount={sourceCount}
+        entityCount={entityCount}
+        activeDomain={panelTarget?.type === "domain" ? panelTarget.domain : null}
+        domainCounts={domainCounts}
+        onWorld={() => setPanelTarget(null)}
+        onDomain={openDomain}
+      />
     </>
   );
 }

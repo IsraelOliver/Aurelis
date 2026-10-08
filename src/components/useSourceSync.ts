@@ -14,7 +14,10 @@ interface Snapshot {
   metadata: { ingestedAt: string };
 }
 
-export type SourceSync<T extends Snapshot> = Omit<SyncState<T>, "url">;
+export type SourceSync<T extends Snapshot> = Omit<SyncState<T>, "url"> & {
+  /** Fetch the same URL again now (e.g. a Retry after a failure); the loop continues from there. */
+  retry: () => void;
+};
 
 /**
  * Polls one internal API route (never the external source) in a controlled
@@ -33,6 +36,8 @@ export function useSourceSync<T extends Snapshot>(
   onSnapshot: (snapshot: T) => void,
 ): SourceSync<T> {
   const [state, setState] = useState<SyncState<T>>(() => emptySyncState<T>(url));
+  // Bumped by retry(): restarts the loop for the same URL (one request in flight still).
+  const [attempt, setAttempt] = useState(0);
   const onSnapshotRef = useRef(onSnapshot);
 
   useEffect(() => {
@@ -88,9 +93,9 @@ export function useSourceSync<T extends Snapshot>(
       clearTimeout(timer);
       controller?.abort();
     };
-  }, [url, pollIntervalMs, label]);
+  }, [url, pollIntervalMs, label, attempt]);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { url: _ignored, ...visible } = syncStateFor(state, url);
-  return visible;
+  return { ...visible, retry: () => setAttempt((a) => a + 1) };
 }

@@ -1,6 +1,6 @@
 import type { GlobalHealth } from "@/types";
 
-const STATUS_BY_HEALTH: Record<GlobalHealth, string> = {
+export const STATUS_BY_HEALTH: Record<GlobalHealth, string> = {
   syncing: "SYNCING",
   live: "NOMINAL",
   partial: "DEGRADED",

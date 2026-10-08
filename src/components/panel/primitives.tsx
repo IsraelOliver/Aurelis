@@ -13,7 +13,7 @@ export const EMPTY = "—";
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[8.5rem_1fr] gap-3 py-1.5 max-sm:grid-cols-[7.25rem_1fr] lg:grid-cols-[8rem_1fr] lg:border-b lg:border-hairline lg:py-2 lg:last:border-b-0">
-      <dt className="pt-px text-[10px] font-medium tracking-[0.18em] text-fg-subtle lg:pt-0.5 lg:tracking-[0.14em]">
+      <dt className="pt-px text-[10px] font-medium tracking-[0.18em] text-fg-subtle phone:text-[11px] phone:tracking-[0.12em] lg:pt-0.5 lg:tracking-[0.14em]">
         {label}
       </dt>
       <dd className="min-w-0 break-words text-[12px] text-fg max-lg:text-[13.5px] lg:text-[12.5px]">{children}</dd>
@@ -39,11 +39,11 @@ export function Time({ iso }: { iso: string | undefined }) {
 
 export function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-line px-4 py-3 lg:border-t-0 lg:px-4 lg:pb-1.5 lg:pt-3">
-      <h3 className="mb-1 text-[10px] font-medium tracking-[0.28em] text-fg-subtle lg:mb-1.5 lg:px-2 lg:tracking-[0.2em]">
+    <section className="border-t border-line px-4 py-3 phone:border-t-0 phone:pb-1 lg:border-t-0 lg:px-4 lg:pb-1.5 lg:pt-3">
+      <h3 className="mb-1 text-[10px] font-medium tracking-[0.28em] text-fg-subtle phone:mb-1.5 phone:text-[11px] phone:tracking-[0.18em] lg:mb-1.5 lg:px-2 lg:tracking-[0.2em]">
         {title}
       </h3>
-      <dl className="lg:rounded-2xl lg:border lg:border-hairline lg:bg-material-group lg:px-3.5 lg:py-1.5">{children}</dl>
+      <dl className="phone:rounded-[18px] phone:border phone:border-hairline phone:bg-material-group phone:px-3.5 phone:py-1 lg:rounded-2xl lg:border lg:border-hairline lg:bg-material-group lg:px-3.5 lg:py-1.5">{children}</dl>
     </section>
   );
 }
@@ -78,17 +78,17 @@ export function PanelShell({
   return (
     <aside
       aria-label="Intelligence panel"
-      className={`flex shrink-0 flex-col overflow-y-auto overscroll-contain border-l border-line bg-surface max-lg:min-h-0 max-lg:w-full max-lg:max-w-none max-lg:flex-1 max-lg:border-l-0 lg:rounded-window lg:border lg:border-hairline lg:bg-material-panel lg:pb-2 lg:shadow-panel lg:backdrop-blur-material lg:backdrop-saturate-150 motion-safe:lg:animate-panel-in ${
+      className={`flex shrink-0 flex-col overflow-y-auto overscroll-contain border-l border-line bg-surface phone:bg-transparent max-lg:min-h-0 max-lg:w-full max-lg:max-w-none max-lg:flex-1 max-lg:border-l-0 lg:rounded-window lg:border lg:border-hairline lg:bg-material-panel lg:pb-2 lg:shadow-panel lg:backdrop-blur-material lg:backdrop-saturate-150 motion-safe:lg:animate-panel-in ${
         wide ? "w-[400px] max-w-[46vw] xl:w-[440px]" : "w-[340px] max-w-[42vw] xl:w-[380px]"
       }`}
     >
-      <header className="flex items-start gap-3 px-4 pb-3 pt-4 max-lg:sticky max-lg:top-0 max-lg:z-10 max-lg:bg-surface lg:px-6 lg:pb-4 lg:pt-6">
+      <header className="flex items-start gap-3 px-4 pb-3 pt-4 max-lg:sticky max-lg:top-0 max-lg:z-10 max-lg:bg-surface phone:bg-sheet phone:px-5 phone:pt-1 lg:px-6 lg:pb-4 lg:pt-6">
         <div className="min-w-0 flex-1">
-          <p className="flex items-center gap-2 text-[10px] font-medium tracking-[0.28em] text-fg-subtle lg:tracking-[0.2em]">
+          <p className="flex items-center gap-2 text-[10px] font-medium tracking-[0.28em] text-fg-subtle phone:text-[11px] phone:tracking-[0.2em] lg:tracking-[0.2em]">
             <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
             {eyebrow}
           </p>
-          <h2 className="mt-1.5 text-[15px] font-medium leading-snug text-fg lg:mt-3 lg:font-display lg:text-[27px] lg:font-normal lg:leading-[1.08] lg:tracking-[-0.005em]">{title}</h2>
+          <h2 className="mt-1.5 text-[15px] font-medium leading-snug text-fg phone:mt-2 phone:font-display phone:text-[25px] phone:font-normal phone:leading-[1.1] lg:mt-3 lg:font-display lg:text-[27px] lg:font-normal lg:leading-[1.08] lg:tracking-[-0.005em]">{title}</h2>
         </div>
         <button
           type="button"

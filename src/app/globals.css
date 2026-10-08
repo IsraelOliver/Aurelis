@@ -1,6 +1,22 @@
 @import "tailwindcss";
 
 /*
+ * The phone app shell: phones in portrait (below md) and short screens below
+ * lg (phones in landscape). Tablets (md to lg, normal height) keep the
+ * compact layout; desktop is lg and up.
+ */
+@custom-variant phone {
+  @media (width < 48rem), (width < 64rem) and (height < 30rem) {
+    @slot;
+  }
+}
+@custom-variant not-phone {
+  @media (width >= 64rem), (width >= 48rem) and (height >= 30rem) {
+    @slot;
+  }
+}
+
+/*
  * AURELIS palette — the only place colors are defined (desktop themes:
  * themes.css, imported after this file by app/layout.tsx).
  * The --aurelis-* values below are FIXED: the map and every data layer read
@@ -141,6 +157,12 @@
   --shadow-field: var(--elevation-field);
   --shadow-window: var(--elevation-window);
   --shadow-plate: var(--elevation-plate);
+  /* Phone shell materials (below md only; set by themes.css). */
+  --color-glass: var(--mobile-glass);
+  --color-glass-strong: var(--mobile-glass-strong);
+  --color-glass-line: var(--mobile-hairline);
+  --color-sheet: var(--mobile-sheet);
+  --shadow-mobile: var(--mobile-shadow);
   --shadow-halo: var(--elevation-halo);
   --blur-material: var(--material-blur);
   --animate-panel-in: aurelis-panel-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -171,6 +193,28 @@
 @keyframes aurelis-scrim-in {
   from {
     opacity: 0;
+  }
+}
+/* Phone: a popover over the map opens from its pointer (short, decelerating). */
+@keyframes aurelis-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* Phone: a tab's screen settles in (short, decelerating). */
+@keyframes aurelis-screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -270,6 +314,74 @@ body {
   /* Collapsed sheet: only the handle and the panel header show; no inner scrolling. */
   [data-sheet="collapsed"] > aside {
     overflow: hidden;
+  }
+}
+/*
+ * Phone (the `phone` variant: below md, or short below lg) — the mobile app shell: a full
+ * bleed map under a floating header, a floating tab bar (MAP · SMILEY ·
+ * SETTINGS) and sheets above it. --tabbar-space is the room the tab bar
+ * takes at the bottom; --sheet-offset-phone (set on <main>) adds the open
+ * context sheet. Tablets (md to lg) keep the compact layout above.
+ */
+@media (width < 48rem), (width < 64rem) and (height < 30rem) {
+  .aurelis-shell {
+    --tabbar-space: calc(4rem + max(0.75rem, env(safe-area-inset-bottom)) + 0.5rem);
+    color: var(--text-primary);
+    background: var(--bg-app);
+  }
+  main .maplibregl-ctrl-bottom-right,
+  main .maplibregl-ctrl-bottom-left {
+    bottom: var(--sheet-offset-phone, 0px);
+  }
+  main .maplibregl-ctrl-bottom-right {
+    right: max(0.25rem, env(safe-area-inset-right));
+  }
+  main .maplibregl-ctrl-group {
+    background: var(--mobile-glass) !important;
+    border: 1px solid var(--mobile-hairline);
+    border-radius: 16px !important;
+    box-shadow: var(--mobile-shadow) !important;
+    backdrop-filter: blur(18px) saturate(1.4);
+    overflow: hidden;
+  }
+  main .maplibregl-ctrl-group button + button {
+    border-top: 1px solid var(--mobile-hairline) !important;
+  }
+  main .maplibregl-ctrl-group .maplibregl-ctrl-icon {
+    filter: var(--map-ctrl-icon-filter);
+  }
+  main .maplibregl-ctrl-bottom-right .maplibregl-ctrl {
+    margin: 0 8px 12px 0;
+  }
+  main .maplibregl-ctrl-bottom-right .maplibregl-ctrl.maplibregl-ctrl-attrib {
+    margin: 0 !important;
+  }
+  /* Expanded context sheet: no room for the control cluster (pinch still zooms). */
+  main[data-sheet="expanded"] .aurelis-map-controls {
+    display: none;
+  }
+  /* Weather inspection: the map is the input — a faint data-colored edge while waiting for a point. */
+  main[data-inspect="weather"]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    box-shadow:
+      inset 0 0 0 1px color-mix(in srgb, var(--accent-data) 28%, transparent),
+      inset 0 0 70px -24px color-mix(in srgb, var(--accent-data) 45%, transparent);
+    animation: aurelis-scrim-in 300ms ease-out;
+  }
+  /* A domain control (Weather → Clouds) takes the right end of the control row: zoom steps up. */
+  main[data-domain-controls] .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+    margin-bottom: 4.75rem !important;
+  }
+  /* The on-screen keyboard is up (SmileyDock): the tab bar steps aside. */
+  :root[data-keyboard="open"] .aurelis-tabbar {
+    display: none;
+  }
+  :root[data-keyboard="open"] .aurelis-smiley-dock {
+    padding-bottom: 0.5rem;
   }
 }
 /* Short landscape screens: an expanded sheet leaves no room for the map controls. */

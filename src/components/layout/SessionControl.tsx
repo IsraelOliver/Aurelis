@@ -4,11 +4,11 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 /**
- * AUTHORIZED + LOG OUT (no email or name shown). Sign-out clears the Supabase
- * cookie session; the full navigation to /login then drops all client state.
- * `desktop`: the refined desktop sidebar footer (same behavior).
+ * Sign-out: clears the Supabase cookie session; the full navigation to /login
+ * then drops all client state. Shared by every session control (desktop,
+ * drawer, phone Settings).
  */
-export default function SessionControl({ collapsed, desktop = false }: { collapsed: boolean; desktop?: boolean }) {
+export function useLogout() {
   const [leaving, setLeaving] = useState(false);
 
   async function logout() {
@@ -20,6 +20,15 @@ export default function SessionControl({ collapsed, desktop = false }: { collaps
       window.location.replace("/login");
     }
   }
+  return { leaving, logout };
+}
+
+/**
+ * AUTHORIZED + LOG OUT (no email or name shown).
+ * `desktop`: the refined desktop sidebar footer (same behavior).
+ */
+export default function SessionControl({ collapsed, desktop = false }: { collapsed: boolean; desktop?: boolean }) {
+  const { leaving, logout } = useLogout();
 
   const icon = (
     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

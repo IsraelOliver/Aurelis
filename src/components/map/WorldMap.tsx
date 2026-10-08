@@ -2,10 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  LngLat,
   Map as MapLibreMap,
   NavigationControl,
   setWorkerUrl,
 } from "maplibre-gl";
+import { publishWeatherAnchor } from "./point-anchor";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   BASEMAP_STYLE_URL,
@@ -61,6 +63,49 @@ setWorkerUrl(MAPLIBRE_WORKER_URL);
 
 /** Clickable data layers below the aircraft, top-most first: earthquakes, then EONET events. */
 const INTERACTIVE_LAYERS = [EARTHQUAKES_LAYER_ID, ...EONET_INTERACTIVE_LAYERS];
+
+/** ISS follow: the zoom the camera flies in to (kept if the user is already closer), and the flight time. */
+const ISS_FOLLOW_ZOOM = 4;
+const ISS_FOLLOW_FLY_MS = 1400;
+
+/**
+ * Camera padding for what covers the map: on compact layouts the context
+ * sheet (PanelDock, `[data-sheet]`) lies over the bottom of the map, so a
+ * followed entity is centered in the part left visible. On desktop the dock
+ * is `display: contents` (the panel sits beside the map): no padding.
+ */
+function mapInsets(map: MapLibreMap) {
+  const insets = { top: 0, bottom: 0, left: 0, right: 0 };
+  const sheet = document.querySelector<HTMLElement>("div[data-sheet]");
+  const display = sheet ? getComputedStyle(sheet).display : "none";
+  if (!sheet || display === "contents" || display === "none") return insets;
+  const area = map.getContainer().getBoundingClientRect();
+  const covered = area.bottom - sheet.getBoundingClientRect().top;
+  insets.bottom = Math.max(0, Math.min(covered, area.height * 0.8));
+  return insets;
+}
+
+/**
+ * Whether the globe hides a location from the camera. Uses MapLibre's own
+ * test when the running version exposes it; otherwise a plain geometric
+ * check (more than ~85° of arc from the view centre is over the horizon).
+ * Always false on the flat map.
+ */
+function behindGlobe(map: MapLibreMap, lngLat: LngLat): boolean {
+  if (map.getProjection()?.type !== "globe") return false;
+  const transform = (map as unknown as { transform?: { isLocationOccluded?: (l: LngLat) => boolean } }).transform;
+  try {
+    if (typeof transform?.isLocationOccluded === "function") return transform.isLocationOccluded(lngLat);
+  } catch {
+    // Internal API changed or failed: fall through to the geometric check.
+  }
+  const c = map.getCenter();
+  const rad = Math.PI / 180;
+  const cos =
+    Math.sin(c.lat * rad) * Math.sin(lngLat.lat * rad) +
+    Math.cos(c.lat * rad) * Math.cos(lngLat.lat * rad) * Math.cos((lngLat.lng - c.lng) * rad);
+  return Math.acos(Math.min(1, Math.max(-1, cos))) / rad > 85;
+}
 
 /**
  * Entity under a screen point, by priority: ISS, aircraft (custom WebGL layer,
@@ -142,6 +187,17 @@ export default function WorldMap({
   const projectionRef = useRef(projection);
   const onBasemapErrorRef = useRef(onBasemapError);
   const [styleReady, setStyleReady] = useState(false);
+  const selectedRef = useRef(selectedEntityId);
+  /**
+   * ISS follow (camera only): "arriving" while flying in, "on" while the
+   * camera tracks the displayed (smoothed) ISS position every frame, "off"
+   * otherwise. Started by selecting the ISS (or tapping it again while
+   * selected); stopped by a user pan or by another selection.
+   */
+  const followRef = useRef<"off" | "arriving" | "on">("off");
+  /** The ISS position currently drawn (written by the animation loop). */
+  const issDisplayRef = useRef<{ lon: number; lat: number } | null>(null);
+  const startIssFollowRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     onSelectRef.current = onSelectEntity;
@@ -207,6 +263,8 @@ export default function WorldMap({
       // weather point (MapLibre does not fire "click" after a drag or zoom).
       map.on("click", (event) => {
         const entityId = entityAt(map, event.point);
+        // Tapping the already-selected ISS again resumes following it (after a pan stopped it).
+        if (entityId === ISS_ENTITY_ID && selectedRef.current === ISS_ENTITY_ID) startIssFollowRef.current();
         if (entityId !== null) onSelectRef.current(entityId);
         else if (weatherModeRef.current) {
           // Longitude wrapped to −180..180 (same position on the globe).
@@ -218,11 +276,26 @@ export default function WorldMap({
         const hit = entityAt(map, event.point) !== null;
         map.getCanvas().style.cursor = hit ? "pointer" : weatherModeRef.current ? "crosshair" : "";
       });
+      // A pan by the user hands the camera back (zooming keeps following).
+      map.on("dragstart", () => {
+        followRef.current = "off";
+      });
 
       setStyleReady(true);
     });
 
+    // Phone: the required attribution can wrap (e.g. with the cloud layer's credit); its real
+    // height (--attrib-h on <main>) keeps the map control row just above it, never over it.
+    const attrib = containerRef.current.querySelector<HTMLElement>(".maplibregl-ctrl-attrib");
+    const host = containerRef.current.closest("main");
+    const attribObserver =
+      attrib && host
+        ? new ResizeObserver(() => host.style.setProperty("--attrib-h", `${attrib.offsetHeight}px`))
+        : null;
+    if (attrib) attribObserver?.observe(attrib);
+
     return () => {
+      attribObserver?.disconnect();
       map.remove();
       mapRef.current = null;
       setStyleReady(false);
@@ -272,6 +345,35 @@ export default function WorldMap({
     // Crosshair also without moving the mouse after entering/leaving weather mode.
     mapRef.current.getCanvas().style.cursor = weatherMode ? "crosshair" : "";
   }, [styleReady, weatherMode, weatherPoint]);
+
+  // The Weather point's screen position for the phone popover (point-anchor store),
+  // republished on every camera move; nothing while there is no point in weather mode.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!styleReady || !map || !weatherMode || !weatherPoint) {
+      publishWeatherAnchor(null);
+      return;
+    }
+    const lngLat = new LngLat(weatherPoint.longitude, weatherPoint.latitude);
+    const publish = () => {
+      const area = map.getContainer().getBoundingClientRect();
+      const p = map.project(lngLat);
+      const onScreen = p.x >= 0 && p.y >= 0 && p.x <= area.width && p.y <= area.height;
+      publishWeatherAnchor({
+        x: Math.round(area.left + p.x),
+        y: Math.round(area.top + p.y),
+        visible: onScreen && !behindGlobe(map, lngLat),
+      });
+    };
+    publish();
+    map.on("move", publish);
+    map.on("resize", publish);
+    return () => {
+      map.off("move", publish);
+      map.off("resize", publish);
+      publishWeatherAnchor(null);
+    };
+  }, [styleReady, weatherMode, weatherPoint, projection]);
 
   // Each AIR snapshot becomes the drawn collection; the layer interpolates visually between
   // real positions (no React per frame, no trails, no extrapolation).
@@ -383,6 +485,12 @@ export default function WorldMap({
       if (key !== lastKey) {
         lastKey = key;
         setIssMarker(map, entity?.id ?? null, position);
+        issDisplayRef.current = position ? { lon: position.lon, lat: position.lat } : null;
+        // Following: the camera stays on the marker (same displayTime, so they never drift apart).
+        if (followRef.current === "on") {
+          if (position) map.jumpTo({ center: [position.lon, position.lat], padding: mapInsets(map) });
+          else followRef.current = "off";
+        }
       }
       // Globe + selected: the orbital trail ends at the marker, so it follows the same displayTime.
       const orbitKey = isIssOrbitTrailActive(map) ? `${key}|${issPositionsRef.current.length}` : "";
@@ -413,6 +521,37 @@ export default function WorldMap({
       setSelectedAircraft(mapRef.current, selectedEntityId);
       setIssSelected(mapRef.current, selectedEntityId === ISS_ENTITY_ID);
     }
+  }, [styleReady, selectedEntityId]);
+
+  // ISS follow: fly in to the displayed position, then hand over to the animation loop.
+  useEffect(() => {
+    startIssFollowRef.current = () => {
+      const map = mapRef.current;
+      const target = issDisplayRef.current;
+      if (!map || !target) return;
+      followRef.current = "arriving";
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      map.flyTo({
+        center: [target.lon, target.lat],
+        zoom: Math.max(map.getZoom(), ISS_FOLLOW_ZOOM),
+        padding: mapInsets(map),
+        duration: reduced ? 0 : ISS_FOLLOW_FLY_MS,
+        essential: true,
+      });
+      map.once("moveend", () => {
+        if (followRef.current === "arriving") followRef.current = "on";
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    const was = selectedRef.current;
+    selectedRef.current = selectedEntityId;
+    if (!styleReady) return;
+    // After commit: on compact layouts the context sheet is already in the DOM, so the
+    // fly-in centers the ISS in the part of the map the sheet leaves visible.
+    if (selectedEntityId === ISS_ENTITY_ID && was !== ISS_ENTITY_ID) startIssFollowRef.current();
+    else if (selectedEntityId !== ISS_ENTITY_ID) followRef.current = "off";
   }, [styleReady, selectedEntityId]);
 
   // Sized with h/w-full: MapLibre's CSS forces position: relative on this node.

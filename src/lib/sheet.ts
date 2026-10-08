@@ -16,5 +16,18 @@ export const SHEET_HEIGHT: Record<SheetSize, string> = {
   expanded: "82dvh",
 };
 
+/**
+ * Phone (the mobile app shell, Tailwind `phone`): the same three states — PEEK,
+ * MEDIUM, EXPANDED — measured above the floating tab bar (`--tabbar-space`,
+ * which already holds the bottom safe area). Capped so the map header stays
+ * visible, which also keeps landscape sheets from covering the screen.
+ */
+const PHONE_MAX = "calc(100dvh - var(--tabbar-space) - env(safe-area-inset-top) - 4.75rem)";
+export const PHONE_SHEET_HEIGHT: Record<SheetSize, string> = {
+  collapsed: "6rem",
+  medium: `min(44dvh, ${PHONE_MAX})`,
+  expanded: `min(80dvh, ${PHONE_MAX})`,
+};
+
 /** A newly opened data panel starts half-way: data and map both visible. */
 export const DEFAULT_SHEET_SIZE: SheetSize = "medium";

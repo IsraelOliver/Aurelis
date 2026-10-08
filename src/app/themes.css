@@ -1,15 +1,20 @@
 /*
- * AURELIS desktop themes (Settings › Themes). <html> carries
- * data-theme="ember|atlas|basalt" and data-tone="light|dark", set before the
- * first paint by the head script in app/layout.tsx (lib/appearance.ts).
- * Ember is the identity and the default; Atlas and Basalt are alternatives.
+ * AURELIS themes (Settings › Themes on desktop, Settings › Theme on phones).
+ * <html> carries data-theme="ember|atlas|basalt|azure" and
+ * data-tone="light|dark", filled before the first paint by the head script
+ * in app/layout.tsx from the preference of the current platform
+ * (lib/appearance.ts: `aurelis.theme` desktop, `aurelis.mobileTheme` phone).
+ * Ember is the identity and the default; Atlas and Basalt are alternatives;
+ * Azure (end of file) exists on phones only.
  *
  * Tokens are re-pointed on .aurelis-shell, never on <html>: the map, its data
- * layers and the login screen keep the fixed --aurelis-* values. Desktop
- * only (64rem and up); compact layouts keep the defaults (AURELIS Navy).
+ * layers and the login screen keep the fixed --aurelis-* values. Themes
+ * apply on desktop (64rem and up) and on phones (the mobile app shell: below
+ * 48rem, or short screens below 64rem); tablets keep the compact defaults
+ * (AURELIS Navy).
  * [data-theme-preview="<id>"] scopes a Settings card to that theme.
  */
-@media (width >= 64rem) {
+@media (width >= 64rem), (width < 48rem), (width < 64rem) and (height < 30rem) {
   /*
    * Signature hooks. Neutral by default (each resolves to a plain token of
    * the current theme), so only a theme that sets them looks different:
@@ -162,5 +167,86 @@
       radial-gradient(1000px 520px at 8% -12%, rgba(201, 133, 84, 0.1), transparent 65%),
       radial-gradient(700px 500px at 100% 120%, rgba(102, 167, 157, 0.05), transparent 60%),
       #171614;
+  }
+}
+
+/*
+ * Phone materials (the mobile app shell), derived from the
+ * current theme. Glass where context matters (map controls, header, tab
+ * bar); near-solid where reading matters (sheets, SMILEY, Settings).
+ */
+@media (width < 48rem), (width < 64rem) and (height < 30rem) {
+  /* On the shell and on each Settings preview, so a card shows its own theme's materials. */
+  .aurelis-shell,
+  .aurelis-shell [data-theme-preview] {
+    --mobile-bg: var(--bg-app);
+    --mobile-surface: var(--bg-surface);
+    --mobile-surface-raised: var(--bg-elevated);
+    --mobile-glass: color-mix(in srgb, var(--bg-surface) 60%, transparent);
+    --mobile-glass-strong: color-mix(in srgb, var(--bg-surface) 82%, transparent);
+    --mobile-sheet: var(--bg-surface); /* solid: sheets are for reading */
+    --mobile-hairline: var(--material-hairline-strong);
+    --mobile-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.7), 0 2px 8px -2px rgba(0, 0, 0, 0.4);
+    --mobile-accent: var(--accent-selection);
+    --mobile-data: var(--accent-data);
+  }
+  /* Light themes over the always-dark map: near-opaque glass, or it reads as grey. */
+  :root[data-tone="light"] .aurelis-shell,
+  .aurelis-shell [data-theme-preview="atlas"] {
+    --mobile-glass: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+    --mobile-glass-strong: color-mix(in srgb, var(--bg-elevated) 94%, transparent);
+    --mobile-shadow: 0 16px 36px -18px rgba(40, 32, 20, 0.38), 0 1px 4px rgba(40, 32, 20, 0.1);
+  }
+}
+
+/*
+ * ── AZURE · light · phone only ── a clear-sky scientific instrument: ice
+ * white and luminous blue glass around the dark planet. Sky blue is the
+ * selection, cyan/teal the data. Reference hues kept; data, live, subtle
+ * text and selection run a little deeper where they are read as text.
+ */
+@media (width < 48rem), (width < 64rem) and (height < 30rem) {
+  :root[data-theme="azure"] .aurelis-shell,
+  .aurelis-shell [data-theme-preview="azure"] {
+    --bg-app: #eaf5fc;
+    --bg-surface: #f6fbff;
+    --bg-elevated: #ffffff;
+    --bg-panel: rgba(246, 251, 255, 0.96);
+    --text-primary: #102538;
+    --text-secondary: #5b7183;
+    --text-tertiary: #687e90; /* reference #8295A4, deepened: 4.1:1 */
+    --border-soft: rgba(39, 105, 151, 0.14);
+    --border-strong: rgba(39, 105, 151, 0.23);
+    --accent-selection: #2183cb; /* reference #2C8ED6 */
+    --accent-selection-muted: #1975ba;
+    --accent-data: #168ea4; /* reference #27B9CE, deepened for text */
+    --accent-live: #13988c; /* reference #3CCBBE, deepened for text */
+    --accent-focus: #2183cb;
+    --accent-deep: #76c7f3;
+    --accent-glint: #76c7f3;
+    --material-float: rgba(249, 252, 255, 0.92);
+    --material-field: rgba(39, 105, 151, 0.06);
+    --material-hover: rgba(39, 105, 151, 0.06);
+    --material-selected: rgba(44, 142, 214, 0.14);
+    --material-group: rgba(255, 255, 255, 0.8);
+    --material-hairline: rgba(39, 105, 151, 0.12);
+    --material-hairline-strong: rgba(39, 105, 151, 0.2);
+    --material-scrim: rgba(16, 37, 56, 0.22);
+    --nav-selected: linear-gradient(90deg, rgba(44, 142, 214, 0.16) 0%, rgba(118, 199, 243, 0.07) 65%, rgba(118, 199, 243, 0) 100%);
+    --accent-fill: linear-gradient(135deg, #76c7f3 0%, #2c8ed6 58%, #1975ba 100%);
+    --thumb-fill: #ffffff;
+    --elevation-thumb: 0 1px 3px rgba(27, 88, 128, 0.16), inset 0 0 0 1px rgba(44, 142, 214, 0.22);
+    --elevation-panel: 0 20px 44px -28px rgba(27, 88, 128, 0.3), 0 1px 3px rgba(27, 88, 128, 0.08);
+    --elevation-plate: 0 0 0 1px rgba(39, 105, 151, 0.12), 0 22px 48px -28px rgba(27, 88, 128, 0.4);
+    --elevation-halo: 0 0 0 1px rgba(44, 142, 214, 0.25), 0 8px 22px -10px rgba(44, 142, 214, 0.4);
+    --shell-background:
+      radial-gradient(900px 600px at 10% -10%, rgba(118, 199, 243, 0.45), transparent 60%),
+      radial-gradient(700px 500px at 100% 110%, rgba(39, 185, 206, 0.14), transparent 60%),
+      linear-gradient(180deg, #eaf5fc 0%, #e2f0fa 100%);
+    --mobile-glass: rgba(242, 249, 255, 0.9); /* reference .76: more opaque over the dark map */
+    --mobile-glass-strong: rgba(249, 252, 255, 0.94);
+    --mobile-sheet: #f6fbff;
+    --mobile-hairline: rgba(39, 105, 151, 0.2);
+    --mobile-shadow: 0 16px 36px -18px rgba(27, 88, 128, 0.32), 0 1px 4px rgba(27, 88, 128, 0.1);
   }
 }
