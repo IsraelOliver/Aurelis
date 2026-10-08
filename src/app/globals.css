@@ -47,6 +47,9 @@
      cloud type; opacity carries the cloud fraction. */
   --aurelis-cloud-thin: #b4bfcf;
   --aurelis-cloud: #f5f7fa;
+  /* The user's own position (phone locate control) only: a rose no data layer uses,
+     so "you" never reads as an event, an aircraft or the ISS. */
+  --aurelis-you: #ff5c93;
 
   --aurelis-text: #eeeeef;
   --aurelis-text-muted: #989ba2;
@@ -124,6 +127,8 @@
   --color-accent-muted: var(--accent-selection-muted);
   --color-data: var(--accent-data);
   --color-live: var(--accent-live);
+  /* The user's own position (phone locate control): a fixed map color, like the map's. */
+  --color-you: var(--aurelis-you);
   /* Desktop only (set by themes.css). */
   --color-glint: var(--accent-glint);
   --color-fg: var(--text-primary);

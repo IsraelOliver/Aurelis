@@ -8,6 +8,7 @@ import {
   setWorkerUrl,
 } from "maplibre-gl";
 import { publishWeatherAnchor } from "./point-anchor";
+import { addUserLocationLayer, setUserLocation, type UserLocation } from "./user-location-layer";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   BASEMAP_STYLE_URL,
@@ -67,6 +68,9 @@ const INTERACTIVE_LAYERS = [EARTHQUAKES_LAYER_ID, ...EONET_INTERACTIVE_LAYERS];
 /** ISS follow: the zoom the camera flies in to (kept if the user is already closer), and the flight time. */
 const ISS_FOLLOW_ZOOM = 4;
 const ISS_FOLLOW_FLY_MS = 1400;
+/** Locate: the zoom the camera flies in to on the user's first fix, and the flight time. */
+const USER_FOLLOW_ZOOM = 12;
+const USER_FOLLOW_FLY_MS = 1600;
 
 /**
  * Camera padding for what covers the map: on compact layouts the context
@@ -148,6 +152,9 @@ export default function WorldMap({
   cloudGrid,
   aircraft,
   aircraftShown,
+  userLocation = null,
+  followUser = false,
+  onUserCameraTakeover,
 }: {
   earthquakes: EarthquakeFeed | null;
   /** NASA EONET events in the current view (already filtered; latest geometry drawn). */
@@ -178,6 +185,12 @@ export default function WorldMap({
   aircraft: { feed: AirTrafficFeed; receivedAtMs: number } | null;
   /** AIR active and aircraft shown (otherwise not drawn). */
   aircraftShown: boolean;
+  /** The user's own live position (phone locate control), or null. Never leaves the browser. */
+  userLocation?: UserLocation | null;
+  /** Keep the camera on the user's position (until a pan or the ISS follow takes over). */
+  followUser?: boolean;
+  /** The camera stopped following the user (a pan, or the ISS follow started). */
+  onUserCameraTakeover?: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -186,6 +199,7 @@ export default function WorldMap({
   const onPickRef = useRef(onPickWeatherPoint);
   const projectionRef = useRef(projection);
   const onBasemapErrorRef = useRef(onBasemapError);
+  const onUserCameraTakeoverRef = useRef(onUserCameraTakeover);
   const [styleReady, setStyleReady] = useState(false);
   const selectedRef = useRef(selectedEntityId);
   /**
@@ -207,7 +221,8 @@ export default function WorldMap({
 
   useEffect(() => {
     onBasemapErrorRef.current = onBasemapError;
-  }, [onBasemapError]);
+    onUserCameraTakeoverRef.current = onUserCameraTakeover;
+  }, [onBasemapError, onUserCameraTakeover]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -255,6 +270,8 @@ export default function WorldMap({
       addCloudLayer(map); // directly below the aurora
       addEonetLayer(map);
       addWeatherPointLayer(map);
+      // The user's position is drawn above every data layer.
+      addUserLocationLayer(map);
       // Above earthquakes/EONET, below the ISS (its trail and marker).
       addAircraftLayer(map, map.getLayer(ISS_TRAIL_LAYER_ID) ? ISS_TRAIL_LAYER_ID : undefined);
 
@@ -279,6 +296,7 @@ export default function WorldMap({
       // A pan by the user hands the camera back (zooming keeps following).
       map.on("dragstart", () => {
         followRef.current = "off";
+        onUserCameraTakeoverRef.current?.();
       });
 
       setStyleReady(true);
@@ -523,9 +541,41 @@ export default function WorldMap({
     }
   }, [styleReady, selectedEntityId]);
 
+  // The user's own position (phone locate control).
+  useEffect(() => {
+    if (styleReady && mapRef.current) setUserLocation(mapRef.current, userLocation);
+  }, [styleReady, userLocation]);
+
+  // Following the user: fly in on the first fix (zoom 12, or closer if already), then
+  // ease to each new fix. The ISS follow yields; a pan hands the camera back (dragstart).
+  const followingUserRef = useRef(false);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!styleReady || !map || !followUser || !userLocation) {
+      followingUserRef.current = false;
+      return;
+    }
+    followRef.current = "off";
+    const center: [number, number] = [userLocation.longitude, userLocation.latitude];
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!followingUserRef.current) {
+      followingUserRef.current = true;
+      map.flyTo({
+        center,
+        zoom: Math.max(map.getZoom(), USER_FOLLOW_ZOOM),
+        padding: mapInsets(map),
+        duration: reduced ? 0 : USER_FOLLOW_FLY_MS,
+        essential: true,
+      });
+    } else {
+      map.easeTo({ center, padding: mapInsets(map), duration: reduced ? 0 : 800 });
+    }
+  }, [styleReady, followUser, userLocation]);
+
   // ISS follow: fly in to the displayed position, then hand over to the animation loop.
   useEffect(() => {
     startIssFollowRef.current = () => {
+      onUserCameraTakeoverRef.current?.(); // the ISS takes the camera
       const map = mapRef.current;
       const target = issDisplayRef.current;
       if (!map || !target) return;
