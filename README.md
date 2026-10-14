@@ -35,7 +35,7 @@ O projeto não tenta substituir sistemas profissionais de monitoramento, serviç
 ### Mobile
 
 <p align="center">
-  <img src="docs/assets/aurelis-mobile.png" alt="AURELIS Mobile" width="420" />
+  <img src="docs/assets/aurelis-mobile.PNG" alt="AURELIS Mobile" width="420" />
 </p>
 
 ---
